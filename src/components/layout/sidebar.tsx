@@ -24,6 +24,14 @@ import {
   BookOpen,
   Menu,
   X,
+  ClipboardList,
+  Target,
+  FolderKanban,
+  LifeBuoy,
+  FileSignature,
+  Receipt,
+  FileX,
+  PieChart,
 } from 'lucide-react';
 
 interface NavItem {
@@ -34,14 +42,22 @@ interface NavItem {
 
 const tenantNavItems: NavItem[] = [
   { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+  { label: 'Lead', href: '/dashboard/lead', icon: Target },
   { label: 'Clienti', href: '/dashboard/clienti', icon: Users },
+  { label: 'Preventivi', href: '/dashboard/preventivi', icon: ClipboardList },
   { label: 'Ordini', href: '/dashboard/ordini', icon: ShoppingCart },
-  { label: 'Magazzino', href: '/dashboard/magazzino', icon: Package },
   { label: 'Fatture', href: '/dashboard/fatture', icon: FileText },
+  { label: 'Note Credito', href: '/dashboard/note-credito', icon: FileX },
+  { label: 'Magazzino', href: '/dashboard/magazzino', icon: Package },
+  { label: 'Progetti', href: '/dashboard/progetti', icon: FolderKanban },
+  { label: 'Ticket', href: '/dashboard/ticket', icon: LifeBuoy },
+  { label: 'Contratti', href: '/dashboard/contratti', icon: FileSignature },
   { label: 'Appuntamenti', href: '/dashboard/appuntamenti', icon: Calendar },
-  { label: 'Mailbox', href: '/dashboard/mailbox', icon: Mail },
+  { label: 'Spese', href: '/dashboard/spese', icon: Receipt },
   { label: 'Payroll', href: '/dashboard/payroll', icon: Wallet },
+  { label: 'Mailbox', href: '/dashboard/mailbox', icon: Mail },
   { label: 'E-commerce', href: '/dashboard/ecommerce', icon: ShoppingBag },
+  { label: 'Report', href: '/dashboard/report', icon: PieChart },
   { label: 'Impostazioni', href: '/dashboard/impostazioni', icon: Settings },
 ];
 

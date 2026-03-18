@@ -239,3 +239,175 @@ export interface LogSync {
   stato: 'successo' | 'errore' | 'conflitto';
   messaggio: string;
 }
+
+// ==================== PREVENTIVI ====================
+
+export type StatoPreventivo = 'bozza' | 'inviato' | 'accettato' | 'rifiutato' | 'scaduto';
+
+export interface Preventivo {
+  id: string;
+  tenantId: string;
+  numero: string;
+  clienteId: string;
+  clienteNome: string;
+  data: string;
+  dataScadenza: string;
+  stato: StatoPreventivo;
+  oggetto: string;
+  righe: RigaOrdine[];
+  subtotale: number;
+  iva: number;
+  totale: number;
+  note?: string;
+  ordineId?: string;
+}
+
+// ==================== LEAD / PIPELINE ====================
+
+export type FaseLead = 'nuovo' | 'contattato' | 'qualificato' | 'proposta' | 'negoziazione' | 'vinto' | 'perso';
+
+export interface Lead {
+  id: string;
+  tenantId: string;
+  azienda: string;
+  referente: string;
+  email: string;
+  telefono: string;
+  fonte: 'sito_web' | 'referral' | 'fiera' | 'social' | 'cold_call' | 'altro';
+  fase: FaseLead;
+  valore: number;
+  probabilita: number;
+  assegnatoA: string;
+  assegnatoNome: string;
+  dataCreazione: string;
+  dataChiusuraPrevista: string;
+  note?: string;
+}
+
+// ==================== PROGETTI E TASK ====================
+
+export type StatoProgetto = 'pianificato' | 'in_corso' | 'in_pausa' | 'completato' | 'annullato';
+export type StatoTask = 'da_fare' | 'in_corso' | 'in_revisione' | 'completato';
+export type PrioritaTask = 'bassa' | 'media' | 'alta' | 'urgente';
+
+export interface Progetto {
+  id: string;
+  tenantId: string;
+  nome: string;
+  clienteId?: string;
+  clienteNome?: string;
+  stato: StatoProgetto;
+  dataInizio: string;
+  dataFinePrevista: string;
+  budget?: number;
+  descrizione: string;
+  responsabileId: string;
+  responsabileNome: string;
+  completamento: number;
+}
+
+export interface Task {
+  id: string;
+  tenantId: string;
+  progettoId: string;
+  titolo: string;
+  descrizione?: string;
+  stato: StatoTask;
+  priorita: PrioritaTask;
+  assegnatoA: string;
+  assegnatoNome: string;
+  dataScadenza: string;
+  oreStimate?: number;
+  oreEffettive?: number;
+}
+
+// ==================== TICKET SUPPORTO ====================
+
+export type PrioritaTicket = 'bassa' | 'media' | 'alta' | 'critica';
+export type StatoTicket = 'aperto' | 'in_lavorazione' | 'in_attesa' | 'risolto' | 'chiuso';
+
+export interface Ticket {
+  id: string;
+  tenantId: string;
+  numero: string;
+  clienteId?: string;
+  clienteNome?: string;
+  oggetto: string;
+  descrizione: string;
+  priorita: PrioritaTicket;
+  stato: StatoTicket;
+  categoria: string;
+  assegnatoA?: string;
+  assegnatoNome?: string;
+  dataApertura: string;
+  dataChiusura?: string;
+  risposte: RispostaTicket[];
+}
+
+export interface RispostaTicket {
+  id: string;
+  autore: string;
+  tipo: 'cliente' | 'operatore';
+  messaggio: string;
+  data: string;
+}
+
+// ==================== CONTRATTI ====================
+
+export type StatoContratto = 'bozza' | 'attivo' | 'scaduto' | 'rinnovato' | 'rescisso';
+
+export interface Contratto {
+  id: string;
+  tenantId: string;
+  numero: string;
+  clienteId: string;
+  clienteNome: string;
+  oggetto: string;
+  tipo: 'servizio' | 'fornitura' | 'manutenzione' | 'consulenza' | 'altro';
+  stato: StatoContratto;
+  dataInizio: string;
+  dataFine: string;
+  valoreAnnuale: number;
+  rinnovo: 'automatico' | 'manuale';
+  note?: string;
+}
+
+// ==================== SPESE ====================
+
+export type CategoriaSpesa = 'trasporti' | 'pasti' | 'alloggio' | 'materiali' | 'servizi' | 'utenze' | 'altro';
+
+export interface Spesa {
+  id: string;
+  tenantId: string;
+  descrizione: string;
+  categoria: CategoriaSpesa;
+  importo: number;
+  data: string;
+  dipendenteId?: string;
+  dipendenteNome?: string;
+  clienteId?: string;
+  clienteNome?: string;
+  progettoId?: string;
+  progettoNome?: string;
+  stato: 'da_approvare' | 'approvata' | 'rifiutata' | 'rimborsata';
+  ricevuta?: boolean;
+  note?: string;
+}
+
+// ==================== NOTE DI CREDITO ====================
+
+export interface NotaDiCredito {
+  id: string;
+  tenantId: string;
+  numero: string;
+  fatturaId: string;
+  fatturaNumero: string;
+  clienteId: string;
+  clienteNome: string;
+  data: string;
+  motivo: string;
+  importo: number;
+  iva: number;
+  totale: number;
+  stato: 'emessa' | 'inviata_sdi' | 'accettata';
+}

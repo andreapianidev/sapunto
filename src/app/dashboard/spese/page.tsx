@@ -1,0 +1,131 @@
+'use client';
+
+import { useState, useMemo } from 'react';
+import { PageContainer } from '@/components/layout/page-container';
+import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import {
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+} from '@/components/ui/table';
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/components/ui/select';
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
+} from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { spese } from '@/lib/mockdata';
+import { formatCurrency, formatDate } from '@/lib/utils';
+import { Search, Plus, Receipt, CheckCircle, Clock, XCircle, Save } from 'lucide-react';
+
+const statoBadge: Record<string, string> = {
+  da_approvare: 'bg-yellow-100 text-yellow-800',
+  approvata: 'bg-green-100 text-green-800',
+  rifiutata: 'bg-red-100 text-red-800',
+  rimborsata: 'bg-blue-100 text-blue-800',
+};
+
+const categoriaBadge: Record<string, string> = {
+  trasporti: 'bg-blue-100 text-blue-800',
+  pasti: 'bg-orange-100 text-orange-800',
+  alloggio: 'bg-purple-100 text-purple-800',
+  materiali: 'bg-green-100 text-green-800',
+  servizi: 'bg-cyan-100 text-cyan-800',
+  utenze: 'bg-yellow-100 text-yellow-800',
+  altro: 'bg-gray-100 text-gray-800',
+};
+
+export default function SpesePage() {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterCategoria, setFilterCategoria] = useState<string>('tutte');
+  const [filterStato, setFilterStato] = useState<string>('tutti');
+
+  const filtered = useMemo(() => {
+    return spese.filter((s) => {
+      const matchSearch = s.descrizione.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchCat = filterCategoria === 'tutte' || s.categoria === filterCategoria;
+      const matchStato = filterStato === 'tutti' || s.stato === filterStato;
+      return matchSearch && matchCat && matchStato;
+    });
+  }, [searchTerm, filterCategoria, filterStato]);
+
+  const totaleMese = spese.reduce((s, sp) => s + sp.importo, 0);
+  const daApprovare = spese.filter((s) => s.stato === 'da_approvare');
+
+  return (
+    <PageContainer
+      title="Spese"
+      description="Gestione note spese aziendali"
+      actions={
+        <Dialog>
+          <DialogTrigger className="inline-flex items-center justify-center rounded-md text-sm font-medium h-8 px-3 bg-[#1a2332] text-white hover:bg-[#1a2332]/90">
+            <Plus className="mr-2 h-4 w-4" />
+            Nuova Spesa
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader><DialogTitle>Nuova Nota Spese</DialogTitle></DialogHeader>
+            <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); alert('Demo: spesa registrata!'); }}>
+              <div className="grid gap-3">
+                <div><Label>Descrizione *</Label><Input placeholder="Descrizione spesa" className="mt-1" required /></div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label>Categoria</Label>
+                    <Select defaultValue="trasporti">
+                      <SelectTrigger className="mt-1 w-full"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="trasporti">Trasporti</SelectItem>
+                        <SelectItem value="pasti">Pasti</SelectItem>
+                        <SelectItem value="materiali">Materiali</SelectItem>
+                        <SelectItem value="servizi">Servizi</SelectItem>
+                        <SelectItem value="utenze">Utenze</SelectItem>
+                        <SelectItem value="altro">Altro</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div><Label>Importo *</Label><Input type="number" step="0.01" placeholder="0,00" className="mt-1" required /></div>
+                </div>
+                <div><Label>Data</Label><Input type="date" defaultValue="2026-03-18" className="mt-1" /></div>
+              </div>
+              <div className="flex justify-end"><Button type="submit" className="bg-[#1a2332] hover:bg-[#1a2332]/90"><Save className="mr-2 h-4 w-4" />Registra</Button></div>
+            </form>
+          </DialogContent>
+        </Dialog>
+      }
+    >
+      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+        <Card><CardContent className="p-4 flex items-center gap-3"><div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 text-blue-700"><Receipt className="h-5 w-5" /></div><div><p className="text-xl font-bold">{formatCurrency(totaleMese)}</p><p className="text-xs text-muted-foreground">Totale Spese</p></div></CardContent></Card>
+        <Card><CardContent className="p-4 flex items-center gap-3"><div className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-50 text-green-700"><CheckCircle className="h-5 w-5" /></div><div><p className="text-2xl font-bold">{spese.filter((s) => s.stato === 'approvata').length}</p><p className="text-xs text-muted-foreground">Approvate</p></div></CardContent></Card>
+        <Card><CardContent className="p-4 flex items-center gap-3"><div className="flex h-10 w-10 items-center justify-center rounded-lg bg-yellow-50 text-yellow-700"><Clock className="h-5 w-5" /></div><div><p className="text-2xl font-bold">{daApprovare.length}</p><p className="text-xs text-muted-foreground">Da Approvare</p></div></CardContent></Card>
+        <Card><CardContent className="p-4 flex items-center gap-3"><div className="flex h-10 w-10 items-center justify-center rounded-lg bg-purple-50 text-purple-700"><Receipt className="h-5 w-5" /></div><div><p className="text-2xl font-bold">{spese.length}</p><p className="text-xs text-muted-foreground">Totale Registrazioni</p></div></CardContent></Card>
+      </div>
+
+      <Card><CardContent className="p-4">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center">
+          <div className="relative flex-1"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><Input placeholder="Cerca spesa..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-9" /></div>
+          <Select value={filterCategoria} onValueChange={(v) => v && setFilterCategoria(v)}><SelectTrigger className="w-[160px]"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="tutte">Tutte</SelectItem><SelectItem value="trasporti">Trasporti</SelectItem><SelectItem value="pasti">Pasti</SelectItem><SelectItem value="materiali">Materiali</SelectItem><SelectItem value="servizi">Servizi</SelectItem><SelectItem value="utenze">Utenze</SelectItem><SelectItem value="altro">Altro</SelectItem></SelectContent></Select>
+          <Select value={filterStato} onValueChange={(v) => v && setFilterStato(v)}><SelectTrigger className="w-[160px]"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="tutti">Tutti</SelectItem><SelectItem value="da_approvare">Da Approvare</SelectItem><SelectItem value="approvata">Approvata</SelectItem><SelectItem value="rimborsata">Rimborsata</SelectItem></SelectContent></Select>
+        </div>
+      </CardContent></Card>
+
+      <Card><CardContent className="p-0">
+        <Table>
+          <TableHeader><TableRow>
+            <TableHead>Data</TableHead><TableHead>Descrizione</TableHead><TableHead className="hidden md:table-cell">Categoria</TableHead><TableHead className="hidden lg:table-cell">Dipendente</TableHead><TableHead>Stato</TableHead><TableHead className="text-right">Importo</TableHead>
+          </TableRow></TableHeader>
+          <TableBody>{filtered.map((s) => (
+            <TableRow key={s.id} className="hover:bg-muted/50">
+              <TableCell className="text-sm">{formatDate(s.data)}</TableCell>
+              <TableCell><p className="text-sm font-medium">{s.descrizione}</p>{s.clienteNome && <p className="text-xs text-muted-foreground">{s.clienteNome}</p>}{s.progettoNome && <p className="text-xs text-muted-foreground">{s.progettoNome}</p>}</TableCell>
+              <TableCell className="hidden md:table-cell"><Badge variant="secondary" className={`text-xs ${categoriaBadge[s.categoria]}`}>{s.categoria}</Badge></TableCell>
+              <TableCell className="hidden lg:table-cell text-sm">{s.dipendenteNome || '—'}</TableCell>
+              <TableCell><Badge variant="secondary" className={`text-xs ${statoBadge[s.stato]}`}>{s.stato.replace('_', ' ')}</Badge></TableCell>
+              <TableCell className="text-right font-semibold text-sm">{formatCurrency(s.importo)}</TableCell>
+            </TableRow>
+          ))}</TableBody>
+        </Table>
+      </CardContent></Card>
+    </PageContainer>
+  );
+}
