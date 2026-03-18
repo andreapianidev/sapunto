@@ -174,7 +174,7 @@ export default function DashboardPage() {
                 </div>
                 <div className="text-right">
                   <p className="text-sm font-semibold">{formatCurrency(ordine.totale)}</p>
-                  <Badge variant="secondary" className={`text-[10px] ${getStatoOrdineColor(ordine.stato)}`}>
+                  <Badge variant="secondary" className={`text-xs ${getStatoOrdineColor(ordine.stato)}`}>
                     {getStatoOrdineLabel(ordine.stato)}
                   </Badge>
                 </div>

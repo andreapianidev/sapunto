@@ -19,7 +19,8 @@ import {
 import { Label } from '@/components/ui/label';
 import { tickets } from '@/lib/mockdata';
 import { formatDate, formatDateTime } from '@/lib/utils';
-import { Search, Plus, Eye, LifeBuoy, AlertCircle, CheckCircle, Clock, MessageSquare } from 'lucide-react';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Search, Plus, Eye, LifeBuoy, AlertCircle, CheckCircle, Clock, MessageSquare, MoreHorizontal, Pencil, Trash2, Copy, Download } from 'lucide-react';
 import type { Ticket } from '@/lib/types';
 
 const statoBadge: Record<string, string> = {
@@ -62,6 +63,8 @@ export default function TicketPage() {
       title="Ticket Supporto"
       description="Gestione richieste di assistenza"
       actions={
+        <div className="flex items-center gap-2">
+        <Button variant="outline" size="sm" onClick={() => alert('Demo: azione eseguita!')}><Download className="mr-2 h-4 w-4" />Export CSV</Button>
         <Dialog>
           <DialogTrigger className="inline-flex items-center justify-center rounded-md text-sm font-medium h-8 px-3 bg-[#1a2332] text-white hover:bg-[#1a2332]/90">
             <Plus className="mr-2 h-4 w-4" />
@@ -112,6 +115,7 @@ export default function TicketPage() {
             </form>
           </DialogContent>
         </Dialog>
+        </div>
       }
     >
       <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
@@ -168,6 +172,7 @@ export default function TicketPage() {
                   <TableHead>Priorità</TableHead>
                   <TableHead>Stato</TableHead>
                   <TableHead className="text-center hidden md:table-cell">Risp.</TableHead>
+                  <TableHead className="w-[50px]">Azioni</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -178,9 +183,10 @@ export default function TicketPage() {
                       <p className="text-xs text-muted-foreground truncate max-w-[200px]">{t.oggetto}</p>
                     </TableCell>
                     <TableCell className="hidden md:table-cell text-sm">{t.clienteNome || '—'}</TableCell>
-                    <TableCell><Badge variant="secondary" className={`text-[10px] ${prioritaBadge[t.priorita]}`}>{t.priorita}</Badge></TableCell>
-                    <TableCell><Badge variant="secondary" className={`text-[10px] ${statoBadge[t.stato]}`}>{t.stato.replace('_', ' ')}</Badge></TableCell>
+                    <TableCell><Badge variant="secondary" className={`text-xs ${prioritaBadge[t.priorita]}`}>{t.priorita}</Badge></TableCell>
+                    <TableCell><Badge variant="secondary" className={`text-xs ${statoBadge[t.stato]}`}>{t.stato.replace('_', ' ')}</Badge></TableCell>
                     <TableCell className="text-center hidden md:table-cell text-sm">{t.risposte.length}</TableCell>
+                    <TableCell><DropdownMenu><DropdownMenuTrigger className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground h-8 w-8 p-0" onClick={(e) => e.stopPropagation()}><MoreHorizontal className="h-4 w-4" /></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem onClick={(e) => { e.stopPropagation(); alert('Demo: azione eseguita!'); }}><Pencil className="mr-2 h-4 w-4" />Modifica</DropdownMenuItem><DropdownMenuItem onClick={(e) => { e.stopPropagation(); alert('Demo: azione eseguita!'); }}><CheckCircle className="mr-2 h-4 w-4" />Chiudi Ticket</DropdownMenuItem><DropdownMenuSeparator /><DropdownMenuItem onClick={(e) => { e.stopPropagation(); alert('Demo: azione eseguita!'); }} className="text-red-600"><Trash2 className="mr-2 h-4 w-4" />Elimina</DropdownMenuItem></DropdownMenuContent></DropdownMenu></TableCell>
                   </TableRow>
                 ))}
               </TableBody>

@@ -15,10 +15,13 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
 } from '@/components/ui/dialog';
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Label } from '@/components/ui/label';
 import { ordini, clienti, prodotti } from '@/lib/mockdata';
 import { formatCurrency, formatDate, getStatoOrdineColor, getStatoOrdineLabel } from '@/lib/utils';
-import { Search, Plus, Eye, ShoppingCart, Save } from 'lucide-react';
+import { Search, Plus, Eye, ShoppingCart, Save, MoreHorizontal, Pencil, Trash2, Copy, Download } from 'lucide-react';
 import type { Ordine } from '@/lib/types';
 
 export default function OrdiniPage() {
@@ -26,6 +29,24 @@ export default function OrdiniPage() {
   const [filterStato, setFilterStato] = useState<string>('tutti');
   const [filterCanale, setFilterCanale] = useState<string>('tutti');
   const [selectedOrdine, setSelectedOrdine] = useState<Ordine | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filtered.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filtered.map((o) => o.id)));
+    }
+  };
 
   // TODO: Replace with Supabase query
   const filtered = useMemo(() => {
@@ -51,11 +72,16 @@ export default function OrdiniPage() {
       title="Ordini"
       description="Gestione ordini clienti"
       actions={
-        <Dialog>
-          <DialogTrigger className="inline-flex items-center justify-center rounded-md text-sm font-medium h-8 px-3 bg-[#1a2332] text-white hover:bg-[#1a2332]/90">
-            <Plus className="mr-2 h-4 w-4" />
-            Nuovo Ordine
-          </DialogTrigger>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => alert('Demo: esporta CSV!')}>
+            <Download className="mr-2 h-4 w-4" />
+            Esporta CSV
+          </Button>
+          <Dialog>
+            <DialogTrigger className="inline-flex items-center justify-center rounded-md text-sm font-medium h-8 px-3 bg-[#1a2332] text-white hover:bg-[#1a2332]/90">
+              <Plus className="mr-2 h-4 w-4" />
+              Nuovo Ordine
+            </DialogTrigger>
           <DialogContent className="sm:max-w-lg">
             <DialogHeader>
               <DialogTitle>Nuovo Ordine</DialogTitle>
@@ -120,6 +146,7 @@ export default function OrdiniPage() {
             </form>
           </DialogContent>
         </Dialog>
+        </div>
       }
     >
       {/* Stats */}
@@ -187,12 +214,39 @@ export default function OrdiniPage() {
         </CardContent>
       </Card>
 
+      {/* Bulk Actions Bar */}
+      {selectedIds.size > 0 && (
+        <Card>
+          <CardContent className="p-3">
+            <div className="flex items-center gap-3">
+              <span className="text-sm font-medium">{selectedIds.size} selezionati</span>
+              <Button variant="destructive" size="sm" onClick={() => alert('Demo: azione eseguita!')}>
+                <Trash2 className="mr-2 h-4 w-4" />
+                Elimina selezionati
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => alert('Demo: azione eseguita!')}>
+                <Download className="mr-2 h-4 w-4" />
+                Esporta selezionati
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Table */}
       <Card>
         <CardContent className="p-0">
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-10">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 rounded border-gray-300"
+                    checked={filtered.length > 0 && selectedIds.size === filtered.length}
+                    onChange={toggleSelectAll}
+                  />
+                </TableHead>
                 <TableHead>Numero</TableHead>
                 <TableHead>Cliente</TableHead>
                 <TableHead>Data</TableHead>
@@ -205,6 +259,14 @@ export default function OrdiniPage() {
             <TableBody>
               {filtered.map((ordine) => (
                 <TableRow key={ordine.id} className="hover:bg-muted/50">
+                  <TableCell>
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 rounded border-gray-300"
+                      checked={selectedIds.has(ordine.id)}
+                      onChange={() => toggleSelect(ordine.id)}
+                    />
+                  </TableCell>
                   <TableCell className="font-medium text-sm">{ordine.numero}</TableCell>
                   <TableCell className="text-sm">{ordine.clienteNome}</TableCell>
                   <TableCell className="text-sm">{formatDate(ordine.data)}</TableCell>
@@ -218,76 +280,98 @@ export default function OrdiniPage() {
                     {formatCurrency(ordine.totale)}
                   </TableCell>
                   <TableCell className="text-right">
-                    <Dialog>
-                      <DialogTrigger
-                        onClick={() => setSelectedOrdine(ordine)}
-                        className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground h-8 w-8"
-                      >
-                        <Eye className="h-4 w-4" />
-                      </DialogTrigger>
-                      <DialogContent className="max-w-lg">
-                        <DialogHeader>
-                          <DialogTitle>Ordine {ordine.numero}</DialogTitle>
-                        </DialogHeader>
-                        <div className="space-y-4">
-                          <div className="grid grid-cols-2 gap-3 text-sm">
-                            <div>
-                              <p className="text-muted-foreground">Cliente</p>
-                              <p className="font-medium">{ordine.clienteNome}</p>
+                    <div className="flex items-center justify-end gap-1">
+                      <Dialog>
+                        <DialogTrigger
+                          onClick={() => setSelectedOrdine(ordine)}
+                          className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground h-8 w-8"
+                        >
+                          <Eye className="h-4 w-4" />
+                        </DialogTrigger>
+                        <DialogContent className="max-w-lg">
+                          <DialogHeader>
+                            <DialogTitle>Ordine {ordine.numero}</DialogTitle>
+                          </DialogHeader>
+                          <div className="space-y-4">
+                            <div className="grid grid-cols-2 gap-3 text-sm">
+                              <div>
+                                <p className="text-muted-foreground">Cliente</p>
+                                <p className="font-medium">{ordine.clienteNome}</p>
+                              </div>
+                              <div>
+                                <p className="text-muted-foreground">Data</p>
+                                <p className="font-medium">{formatDate(ordine.data)}</p>
+                              </div>
+                              <div>
+                                <p className="text-muted-foreground">Stato</p>
+                                <Badge variant="secondary" className={getStatoOrdineColor(ordine.stato)}>
+                                  {getStatoOrdineLabel(ordine.stato)}
+                                </Badge>
+                              </div>
+                              <div>
+                                <p className="text-muted-foreground">Canale</p>
+                                <p className="font-medium capitalize">{ordine.canale}</p>
+                              </div>
                             </div>
                             <div>
-                              <p className="text-muted-foreground">Data</p>
-                              <p className="font-medium">{formatDate(ordine.data)}</p>
-                            </div>
-                            <div>
-                              <p className="text-muted-foreground">Stato</p>
-                              <Badge variant="secondary" className={getStatoOrdineColor(ordine.stato)}>
-                                {getStatoOrdineLabel(ordine.stato)}
-                              </Badge>
-                            </div>
-                            <div>
-                              <p className="text-muted-foreground">Canale</p>
-                              <p className="font-medium capitalize">{ordine.canale}</p>
-                            </div>
-                          </div>
-                          <div>
-                            <p className="text-sm font-semibold mb-2">Righe ordine</p>
-                            <Table>
-                              <TableHeader>
-                                <TableRow>
-                                  <TableHead>Prodotto</TableHead>
-                                  <TableHead className="text-center">Qtà</TableHead>
-                                  <TableHead className="text-right">Totale</TableHead>
-                                </TableRow>
-                              </TableHeader>
-                              <TableBody>
-                                {ordine.righe.map((riga, i) => (
-                                  <TableRow key={i}>
-                                    <TableCell className="text-sm">{riga.nome}</TableCell>
-                                    <TableCell className="text-center text-sm">{riga.quantita}</TableCell>
-                                    <TableCell className="text-right text-sm">{formatCurrency(riga.totale)}</TableCell>
+                              <p className="text-sm font-semibold mb-2">Righe ordine</p>
+                              <Table>
+                                <TableHeader>
+                                  <TableRow>
+                                    <TableHead>Prodotto</TableHead>
+                                    <TableHead className="text-center">Qtà</TableHead>
+                                    <TableHead className="text-right">Totale</TableHead>
                                   </TableRow>
-                                ))}
-                              </TableBody>
-                            </Table>
+                                </TableHeader>
+                                <TableBody>
+                                  {ordine.righe.map((riga, i) => (
+                                    <TableRow key={i}>
+                                      <TableCell className="text-sm">{riga.nome}</TableCell>
+                                      <TableCell className="text-center text-sm">{riga.quantita}</TableCell>
+                                      <TableCell className="text-right text-sm">{formatCurrency(riga.totale)}</TableCell>
+                                    </TableRow>
+                                  ))}
+                                </TableBody>
+                              </Table>
+                            </div>
+                            <div className="border-t pt-3 space-y-1 text-sm">
+                              <div className="flex justify-between">
+                                <span className="text-muted-foreground">Subtotale</span>
+                                <span>{formatCurrency(ordine.subtotale)}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-muted-foreground">IVA 22%</span>
+                                <span>{formatCurrency(ordine.iva)}</span>
+                              </div>
+                              <div className="flex justify-between font-bold text-base">
+                                <span>Totale</span>
+                                <span>{formatCurrency(ordine.totale)}</span>
+                              </div>
+                            </div>
                           </div>
-                          <div className="border-t pt-3 space-y-1 text-sm">
-                            <div className="flex justify-between">
-                              <span className="text-muted-foreground">Subtotale</span>
-                              <span>{formatCurrency(ordine.subtotale)}</span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="text-muted-foreground">IVA 22%</span>
-                              <span>{formatCurrency(ordine.iva)}</span>
-                            </div>
-                            <div className="flex justify-between font-bold text-base">
-                              <span>Totale</span>
-                              <span>{formatCurrency(ordine.totale)}</span>
-                            </div>
-                          </div>
-                        </div>
-                      </DialogContent>
-                    </Dialog>
+                        </DialogContent>
+                      </Dialog>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground h-8 w-8 p-0">
+                          <MoreHorizontal className="h-4 w-4" />
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => alert('Demo: azione eseguita!')}>
+                            <Pencil className="mr-2 h-4 w-4" />
+                            Modifica
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => alert('Demo: azione eseguita!')}>
+                            <Copy className="mr-2 h-4 w-4" />
+                            Duplica
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem onClick={() => alert('Demo: azione eseguita!')} className="text-red-600">
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Elimina
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}

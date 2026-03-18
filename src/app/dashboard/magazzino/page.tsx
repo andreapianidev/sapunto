@@ -13,9 +13,16 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
+} from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { prodotti, movimentiMagazzino } from '@/lib/mockdata';
 import { formatCurrency, formatDate } from '@/lib/utils';
-import { Search, Package, AlertTriangle, ArrowUpCircle, ArrowDownCircle } from 'lucide-react';
+import { Search, Package, AlertTriangle, ArrowUpCircle, ArrowDownCircle, Plus, MoreHorizontal, Pencil, Trash2, Download } from 'lucide-react';
 
 export default function MagazzinoPage() {
   const [searchTerm, setSearchTerm] = useState('');
@@ -40,7 +47,136 @@ export default function MagazzinoPage() {
   const valoreInventario = prodotti.reduce((sum, p) => sum + p.prezzo * p.giacenza, 0);
 
   return (
-    <PageContainer title="Magazzino" description="Gestione inventario e movimenti">
+    <PageContainer
+      title="Magazzino"
+      description="Gestione inventario e movimenti"
+      actions={
+        <>
+          <Button variant="outline" size="sm" onClick={() => alert('Demo: Esportazione inventario in corso...')}>
+            <Download className="h-4 w-4 mr-2" />
+            Esporta
+          </Button>
+          <Dialog>
+            <DialogTrigger className="inline-flex items-center justify-center rounded-md text-sm font-medium border border-input bg-background hover:bg-accent hover:text-accent-foreground h-8 px-3">
+                <ArrowUpCircle className="h-4 w-4 mr-2" />
+                Movimento Magazzino
+            </DialogTrigger>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle>Nuovo Movimento Magazzino</DialogTitle>
+              </DialogHeader>
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  alert('Demo: Movimento magazzino registrato con successo!');
+                }}
+                className="space-y-4"
+              >
+                <div className="space-y-2">
+                  <Label htmlFor="mov-prodotto">Prodotto *</Label>
+                  <Select>
+                    <SelectTrigger id="mov-prodotto">
+                      <SelectValue placeholder="Seleziona prodotto" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {prodotti.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>{p.nome}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="mov-tipo">Tipo *</Label>
+                  <Select>
+                    <SelectTrigger id="mov-tipo">
+                      <SelectValue placeholder="Seleziona tipo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="carico">Carico</SelectItem>
+                      <SelectItem value="scarico">Scarico</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="mov-quantita">Quantit&agrave;</Label>
+                  <Input id="mov-quantita" type="number" min="1" placeholder="0" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="mov-motivo">Motivo</Label>
+                  <Input id="mov-motivo" placeholder="es. Acquisto fornitore, Vendita..." />
+                </div>
+                <Button type="submit" className="w-full bg-[#1a2332] hover:bg-[#1a2332]/90 text-white">
+                  Registra Movimento
+                </Button>
+              </form>
+            </DialogContent>
+          </Dialog>
+          <Dialog>
+            <DialogTrigger className="inline-flex items-center justify-center rounded-md text-sm font-medium h-8 px-3 bg-[#1a2332] text-white hover:bg-[#1a2332]/90">
+                <Plus className="h-4 w-4 mr-2" />
+                Nuovo Prodotto
+            </DialogTrigger>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle>Nuovo Prodotto</DialogTitle>
+              </DialogHeader>
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  alert('Demo: Prodotto salvato con successo!');
+                }}
+                className="space-y-4"
+              >
+                <div className="space-y-2">
+                  <Label htmlFor="prod-nome">Nome Prodotto *</Label>
+                  <Input id="prod-nome" placeholder="Nome del prodotto" required />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="prod-sku">SKU</Label>
+                  <Input id="prod-sku" placeholder="es. MAT-001" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="prod-categoria">Categoria</Label>
+                  <Select>
+                    <SelectTrigger id="prod-categoria">
+                      <SelectValue placeholder="Seleziona categoria" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {categorie.map((cat) => (
+                        <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="prod-prezzo">Prezzo</Label>
+                    <Input id="prod-prezzo" type="number" step="0.01" min="0" placeholder="0.00" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="prod-unita">Unit&agrave; di misura</Label>
+                    <Input id="prod-unita" placeholder="es. pz, kg, lt" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="prod-giacenza">Giacenza iniziale</Label>
+                    <Input id="prod-giacenza" type="number" min="0" placeholder="0" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="prod-scorta">Scorta minima</Label>
+                    <Input id="prod-scorta" type="number" min="0" placeholder="0" />
+                  </div>
+                </div>
+                <Button type="submit" className="w-full bg-[#1a2332] hover:bg-[#1a2332]/90 text-white">
+                  Salva Prodotto
+                </Button>
+              </form>
+            </DialogContent>
+          </Dialog>
+        </>
+      }
+    >
       {/* Stats */}
       <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
         <Card>
@@ -96,7 +232,7 @@ export default function MagazzinoPage() {
           <TabsTrigger value="sottoscorta">
             Sottoscorta
             {sottoscorta.length > 0 && (
-              <Badge variant="destructive" className="ml-1.5 text-[10px] px-1.5">
+              <Badge variant="destructive" className="ml-1.5 text-xs px-1.5">
                 {sottoscorta.length}
               </Badge>
             )}
@@ -139,6 +275,7 @@ export default function MagazzinoPage() {
                     <TableHead className="text-center">Giacenza</TableHead>
                     <TableHead className="text-right hidden md:table-cell">Prezzo</TableHead>
                     <TableHead className="text-right">Valore</TableHead>
+                    <TableHead className="text-right">Azioni</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -168,6 +305,32 @@ export default function MagazzinoPage() {
                         </TableCell>
                         <TableCell className="text-right font-semibold text-sm">
                           {formatCurrency(prodotto.prezzo * prodotto.giacenza)}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground h-8 w-8 p-0">
+                                <MoreHorizontal className="h-4 w-4" />
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => alert(`Demo: Modifica prodotto "${prodotto.nome}"`)}>
+                                <Pencil className="h-4 w-4 mr-2" />
+                                Modifica
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => alert(`Demo: Carico rapido per "${prodotto.nome}"`)}>
+                                <ArrowUpCircle className="h-4 w-4 mr-2 text-green-600" />
+                                <span className="text-green-600">Carico Rapido</span>
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => alert(`Demo: Scarico rapido per "${prodotto.nome}"`)}>
+                                <ArrowDownCircle className="h-4 w-4 mr-2 text-red-600" />
+                                <span className="text-red-600">Scarico Rapido</span>
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem onClick={() => alert(`Demo: Eliminazione prodotto "${prodotto.nome}"`)}>
+                                <Trash2 className="h-4 w-4 mr-2 text-red-600" />
+                                <span className="text-red-600">Elimina</span>
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </TableCell>
                       </TableRow>
                     );

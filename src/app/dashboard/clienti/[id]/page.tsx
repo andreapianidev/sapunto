@@ -19,7 +19,7 @@ import {
 } from '@/lib/utils';
 import {
   ArrowLeft, Building2, User as UserIcon, Mail, Phone, MapPin,
-  FileText, ShoppingCart, Calendar, Edit,
+  FileText, ShoppingCart, Calendar, Edit, Trash2,
 } from 'lucide-react';
 
 export default function ClienteDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -64,6 +64,10 @@ export default function ClienteDetailPage({ params }: { params: Promise<{ id: st
           <Button size="sm" className="bg-[#1a2332] hover:bg-[#1a2332]/90">
             <Edit className="mr-2 h-4 w-4" />
             Modifica
+          </Button>
+          <Button variant="destructive" size="sm" onClick={() => alert('Demo: cliente eliminato!')}>
+            <Trash2 className="mr-2 h-4 w-4" />
+            Elimina
           </Button>
         </div>
       }
@@ -307,8 +311,8 @@ export default function ClienteDetailPage({ params }: { params: Promise<{ id: st
               {clienteAppuntamenti.map((app) => (
                 <div key={app.id} className="flex items-start gap-3 border-b border-border pb-3 last:border-0">
                   <div className="flex h-10 w-10 flex-col items-center justify-center rounded-lg bg-blue-50 text-blue-700">
-                    <span className="text-[10px] font-bold">{formatDate(app.data).slice(0, 5)}</span>
-                    <span className="text-[10px]">{app.oraInizio}</span>
+                    <span className="text-xs font-bold">{formatDate(app.data).slice(0, 5)}</span>
+                    <span className="text-xs">{app.oraInizio}</span>
                   </div>
                   <div>
                     <p className="text-sm font-medium">{app.titolo}</p>
@@ -319,7 +323,7 @@ export default function ClienteDetailPage({ params }: { params: Promise<{ id: st
                       <p className="text-xs text-muted-foreground">{app.luogo}</p>
                     )}
                   </div>
-                  <Badge variant="secondary" className={`ml-auto text-[10px] ${
+                  <Badge variant="secondary" className={`ml-auto text-xs ${
                     app.stato === 'confermato' ? 'bg-green-100 text-green-800' :
                     app.stato === 'in_attesa' ? 'bg-yellow-100 text-yellow-800' :
                     'bg-red-100 text-red-800'

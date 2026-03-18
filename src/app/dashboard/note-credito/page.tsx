@@ -10,11 +10,14 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
 } from '@/components/ui/dialog';
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { noteDiCredito } from '@/lib/mockdata';
 import { formatCurrency, formatDate } from '@/lib/utils';
-import { Plus, FileX, Save } from 'lucide-react';
+import { Plus, FileX, Save, MoreHorizontal, Pencil, Trash2, Copy, Download } from 'lucide-react';
 
 const statoBadge: Record<string, string> = {
   emessa: 'bg-blue-100 text-blue-800',
@@ -30,11 +33,16 @@ export default function NoteCreditoPage() {
       title="Note di Credito"
       description="Gestione note di credito emesse"
       actions={
-        <Dialog>
-          <DialogTrigger className="inline-flex items-center justify-center rounded-md text-sm font-medium h-8 px-3 bg-[#1a2332] text-white hover:bg-[#1a2332]/90">
-            <Plus className="mr-2 h-4 w-4" />
-            Nuova Nota di Credito
-          </DialogTrigger>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => alert('Demo: export CSV note di credito!')}>
+            <Download className="mr-2 h-4 w-4" />
+            Esporta CSV
+          </Button>
+          <Dialog>
+            <DialogTrigger className="inline-flex items-center justify-center rounded-md text-sm font-medium h-8 px-3 bg-[#1a2332] text-white hover:bg-[#1a2332]/90">
+              <Plus className="mr-2 h-4 w-4" />
+              Nuova Nota di Credito
+            </DialogTrigger>
           <DialogContent className="sm:max-w-md">
             <DialogHeader><DialogTitle>Nuova Nota di Credito</DialogTitle></DialogHeader>
             <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); alert('Demo: nota di credito emessa!'); }}>
@@ -49,7 +57,8 @@ export default function NoteCreditoPage() {
               <div className="flex justify-end"><Button type="submit" className="bg-[#1a2332] hover:bg-[#1a2332]/90"><Save className="mr-2 h-4 w-4" />Emetti</Button></div>
             </form>
           </DialogContent>
-        </Dialog>
+          </Dialog>
+        </div>
       }
     >
       <div className="grid gap-4 grid-cols-2 lg:grid-cols-3">
@@ -61,7 +70,7 @@ export default function NoteCreditoPage() {
       <Card><CardContent className="p-0">
         <Table>
           <TableHeader><TableRow>
-            <TableHead>Numero</TableHead><TableHead>Fattura Rif.</TableHead><TableHead>Cliente</TableHead><TableHead className="hidden md:table-cell">Data</TableHead><TableHead className="hidden lg:table-cell">Motivo</TableHead><TableHead>Stato</TableHead><TableHead className="text-right">Totale</TableHead>
+            <TableHead>Numero</TableHead><TableHead>Fattura Rif.</TableHead><TableHead>Cliente</TableHead><TableHead className="hidden md:table-cell">Data</TableHead><TableHead className="hidden lg:table-cell">Motivo</TableHead><TableHead>Stato</TableHead><TableHead className="text-right">Totale</TableHead><TableHead className="w-[50px]">Azioni</TableHead>
           </TableRow></TableHeader>
           <TableBody>{noteDiCredito.map((n) => (
             <TableRow key={n.id} className="hover:bg-muted/50">
@@ -72,6 +81,25 @@ export default function NoteCreditoPage() {
               <TableCell className="hidden lg:table-cell text-sm text-muted-foreground truncate max-w-[200px]">{n.motivo}</TableCell>
               <TableCell><Badge variant="secondary" className={`text-xs ${statoBadge[n.stato]}`}>{n.stato.replace('_', ' ')}</Badge></TableCell>
               <TableCell className="text-right font-semibold text-sm">{formatCurrency(n.totale)}</TableCell>
+              <TableCell>
+                <DropdownMenu>
+                  <DropdownMenuTrigger className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground h-8 w-8 p-0">
+                    <MoreHorizontal className="h-4 w-4" />
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => alert('Demo: azione eseguita!')}>
+                      <Pencil className="mr-2 h-4 w-4" />Modifica
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => alert('Demo: azione eseguita!')}>
+                      <Copy className="mr-2 h-4 w-4" />Duplica
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => alert('Demo: azione eseguita!')} className="text-red-600">
+                      <Trash2 className="mr-2 h-4 w-4" />Elimina
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </TableCell>
             </TableRow>
           ))}</TableBody>
         </Table>

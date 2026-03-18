@@ -58,15 +58,15 @@ export default function EcommercePage() {
                   <div className="grid grid-cols-3 gap-3 text-center">
                     <div className="p-2 bg-muted/50 rounded-lg">
                       <p className="text-lg font-bold">{int.ordiniSincronizzati}</p>
-                      <p className="text-[10px] text-muted-foreground">Ordini sync</p>
+                      <p className="text-xs text-muted-foreground">Ordini sync</p>
                     </div>
                     <div className="p-2 bg-muted/50 rounded-lg">
                       <p className="text-lg font-bold">{int.prodottiMappati}</p>
-                      <p className="text-[10px] text-muted-foreground">Prodotti</p>
+                      <p className="text-xs text-muted-foreground">Prodotti</p>
                     </div>
                     <div className="p-2 bg-muted/50 rounded-lg">
                       <p className={`text-lg font-bold ${int.errori > 0 ? 'text-red-600' : ''}`}>{int.errori}</p>
-                      <p className="text-[10px] text-muted-foreground">Errori</p>
+                      <p className="text-xs text-muted-foreground">Errori</p>
                     </div>
                   </div>
                   {int.ultimoSync && (

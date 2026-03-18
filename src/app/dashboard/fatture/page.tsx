@@ -22,7 +22,10 @@ import {
   formatCurrency, formatDate, getStatoSDIColor, getStatoSDILabel,
   getStatoPagamentoColor,
 } from '@/lib/utils';
-import { Search, Plus, Eye, FileText, Send, CheckCircle, XCircle, Clock, Save } from 'lucide-react';
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Search, Plus, Eye, FileText, Send, CheckCircle, XCircle, Clock, Save, MoreHorizontal, Pencil, Trash2, Copy, Download, Printer } from 'lucide-react';
 import type { Fattura } from '@/lib/types';
 
 export default function FatturePage() {
@@ -30,6 +33,33 @@ export default function FatturePage() {
   const [filterTipo, setFilterTipo] = useState<string>('tutti');
   const [filterSDI, setFilterSDI] = useState<string>('tutti');
   const [selectedFattura, setSelectedFattura] = useState<Fattura | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filtered.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filtered.map((f) => f.id)));
+    }
+  };
+
+  const exportCSV = (rows: typeof fatture) => {
+    const header = 'Numero,Cliente,Data,Tipo,Stato SDI,Pagamento,Totale';
+    const csv = [header, ...rows.map((f) => `${f.numero},${f.clienteNome},${f.data},${f.tipo},${f.statoSDI},${f.stato},${f.totale}`)].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'fatture.csv'; a.click();
+    URL.revokeObjectURL(url);
+  };
 
   // TODO: Replace with Supabase query
   const fattureEmesse = fatture.filter((f) => f.tipo === 'emessa');
@@ -55,6 +85,11 @@ export default function FatturePage() {
       title="Fatturazione Elettronica"
       description="Gestione fatture emesse e ricevute"
       actions={
+        <div className="flex items-center gap-2">
+        <Button variant="outline" size="sm" onClick={() => exportCSV(filtered)}>
+          <Download className="mr-2 h-4 w-4" />
+          Esporta
+        </Button>
         <Dialog>
           <DialogTrigger className="inline-flex items-center justify-center rounded-md text-sm font-medium h-8 px-3 bg-[#1a2332] text-white hover:bg-[#1a2332]/90">
             <Plus className="mr-2 h-4 w-4" />
@@ -148,6 +183,7 @@ export default function FatturePage() {
             </form>
           </DialogContent>
         </Dialog>
+        </div>
       }
     >
       {/* Stats */}
@@ -247,12 +283,35 @@ export default function FatturePage() {
         </CardContent>
       </Card>
 
+      {/* Bulk action bar */}
+      {selectedIds.size > 0 && (
+        <Card>
+          <CardContent className="p-3 flex items-center gap-3">
+            <span className="text-sm font-medium">{selectedIds.size} selezionati</span>
+            <Button variant="destructive" size="sm" onClick={() => alert('Demo: azione eseguita!')}>
+              <Trash2 className="mr-2 h-4 w-4" />Elimina selezionati
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => exportCSV(filtered.filter((f) => selectedIds.has(f.id)))}>
+              <Download className="mr-2 h-4 w-4" />Esporta selezionati
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Table */}
       <Card>
         <CardContent className="p-0">
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-10">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 rounded border-gray-300"
+                    checked={filtered.length > 0 && selectedIds.size === filtered.length}
+                    onChange={toggleSelectAll}
+                  />
+                </TableHead>
                 <TableHead>Numero</TableHead>
                 <TableHead>Cliente / Fornitore</TableHead>
                 <TableHead>Data</TableHead>
@@ -266,6 +325,14 @@ export default function FatturePage() {
             <TableBody>
               {filtered.map((fattura) => (
                 <TableRow key={fattura.id} className="hover:bg-muted/50">
+                  <TableCell>
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 rounded border-gray-300"
+                      checked={selectedIds.has(fattura.id)}
+                      onChange={() => toggleSelect(fattura.id)}
+                    />
+                  </TableCell>
                   <TableCell className="font-medium text-sm">{fattura.numero}</TableCell>
                   <TableCell className="text-sm">{fattura.clienteNome}</TableCell>
                   <TableCell className="text-sm">{formatDate(fattura.data)}</TableCell>
@@ -288,6 +355,7 @@ export default function FatturePage() {
                     {formatCurrency(fattura.totale)}
                   </TableCell>
                   <TableCell className="text-right">
+                    <div className="flex items-center justify-end gap-1">
                     <Dialog>
                       <DialogTrigger
                         onClick={() => setSelectedFattura(fattura)}
@@ -360,6 +428,27 @@ export default function FatturePage() {
                         </div>
                       </DialogContent>
                     </Dialog>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground h-8 w-8">
+                        <MoreHorizontal className="h-4 w-4" />
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => alert('Demo: azione eseguita!')}>
+                          <Pencil className="mr-2 h-4 w-4" />Modifica
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => alert('Demo: azione eseguita!')}>
+                          <Copy className="mr-2 h-4 w-4" />Duplica
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => alert('Demo: azione eseguita!')}>
+                          <Printer className="mr-2 h-4 w-4" />Stampa
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={() => alert('Demo: azione eseguita!')} className="text-red-600">
+                          <Trash2 className="mr-2 h-4 w-4" />Elimina
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}

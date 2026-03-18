@@ -10,7 +10,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { progetti, tasks } from '@/lib/mockdata';
 import { formatCurrency, formatDate } from '@/lib/utils';
-import { Plus, FolderKanban, CheckCircle, Clock, Save } from 'lucide-react';
+import { Plus, FolderKanban, CheckCircle, Clock, Save, MoreHorizontal, Pencil, Trash2, Download } from 'lucide-react';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import type { StatoProgetto, StatoTask } from '@/lib/types';
 
 const statoBadge: Record<string, string> = { pianificato: 'bg-gray-100 text-gray-800', in_corso: 'bg-blue-100 text-blue-800', in_pausa: 'bg-yellow-100 text-yellow-800', completato: 'bg-green-100 text-green-800', annullato: 'bg-red-100 text-red-800' };
@@ -27,6 +28,8 @@ export default function ProgettiPage() {
 
   return (
     <PageContainer title="Progetti" description="Gestione progetti e task" actions={
+      <div className="flex items-center gap-2">
+      <Button variant="outline" size="sm" onClick={() => alert('Demo: azione eseguita!')}><Download className="mr-2 h-4 w-4" />Esporta</Button>
       <Dialog>
         <DialogTrigger className="inline-flex items-center justify-center rounded-md text-sm font-medium h-8 px-3 bg-[#1a2332] text-white hover:bg-[#1a2332]/90"><Plus className="mr-2 h-4 w-4" />Nuovo Progetto</DialogTrigger>
         <DialogContent className="sm:max-w-md">
@@ -37,6 +40,7 @@ export default function ProgettiPage() {
           </form>
         </DialogContent>
       </Dialog>
+      </div>
     }>
       <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
         <Card><CardContent className="p-4 flex items-center gap-3"><div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 text-blue-700"><FolderKanban className="h-5 w-5" /></div><div><p className="text-2xl font-bold">{progetti.length}</p><p className="text-xs text-muted-foreground">Totale Progetti</p></div></CardContent></Card>
@@ -55,7 +59,23 @@ export default function ProgettiPage() {
                   <p className="font-semibold text-sm">{p.nome}</p>
                   {p.clienteNome && <p className="text-xs text-muted-foreground">{p.clienteNome}</p>}
                 </div>
-                <Badge variant="secondary" className={`text-[10px] ${statoBadge[p.stato]}`}>{statoLabel[p.stato]}</Badge>
+                <div className="flex items-center gap-1">
+                  <Badge variant="secondary" className={`text-xs ${statoBadge[p.stato]}`}>{statoLabel[p.stato]}</Badge>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground h-6 w-6" onClick={(e) => e.stopPropagation()}>
+                        <MoreHorizontal className="h-3.5 w-3.5" />
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={(e) => { e.stopPropagation(); alert('Demo: azione eseguita!'); }}>
+                        <Pencil className="mr-2 h-3.5 w-3.5" />Modifica
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem className="text-red-600" onClick={(e) => { e.stopPropagation(); alert('Demo: azione eseguita!'); }}>
+                        <Trash2 className="mr-2 h-3.5 w-3.5" />Elimina
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
               </div>
               <p className="text-xs text-muted-foreground">{p.descrizione}</p>
               <div className="flex items-center justify-between text-xs text-muted-foreground">
@@ -87,19 +107,38 @@ export default function ProgettiPage() {
                   <CardHeader className="p-3 pb-2">
                     <div className="flex items-center justify-between">
                       <CardTitle className="text-xs font-semibold uppercase tracking-wider">{taskStatoLabel[fase]}</CardTitle>
-                      <Badge variant="secondary" className="text-[10px]">{faseTasks.length}</Badge>
+                      <Badge variant="secondary" className="text-xs">{faseTasks.length}</Badge>
                     </div>
                   </CardHeader>
                   <CardContent className="p-3 pt-0 space-y-2">
                     {faseTasks.map((task) => (
                       <div key={task.id} className="rounded-lg border p-2.5 bg-background">
-                        <p className="text-sm font-medium">{task.titolo}</p>
-                        <div className="flex items-center justify-between mt-2">
-                          <Badge variant="secondary" className={`text-[10px] ${prioritaBadge[task.priorita]}`}>{task.priorita}</Badge>
-                          <span className="text-[10px] text-muted-foreground">{formatDate(task.dataScadenza)}</span>
+                        <div className="flex items-start justify-between">
+                          <p className="text-sm font-medium">{task.titolo}</p>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground h-5 w-5 shrink-0">
+                                <MoreHorizontal className="h-3 w-3" />
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => alert('Demo: azione eseguita!')}>
+                                <Pencil className="mr-2 h-3.5 w-3.5" />Modifica
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => alert('Demo: azione eseguita!')}>
+                                <Clock className="mr-2 h-3.5 w-3.5" />Cambia Stato
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem className="text-red-600" onClick={() => alert('Demo: azione eseguita!')}>
+                                <Trash2 className="mr-2 h-3.5 w-3.5" />Elimina
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </div>
-                        <p className="text-[10px] text-muted-foreground mt-1">{task.assegnatoNome}</p>
-                        {task.oreStimate && <p className="text-[10px] text-muted-foreground">{task.oreEffettive || 0}/{task.oreStimate}h</p>}
+                        <div className="flex items-center justify-between mt-2">
+                          <Badge variant="secondary" className={`text-xs ${prioritaBadge[task.priorita]}`}>{task.priorita}</Badge>
+                          <span className="text-xs text-muted-foreground">{formatDate(task.dataScadenza)}</span>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1">{task.assegnatoNome}</p>
+                        {task.oreStimate && <p className="text-xs text-muted-foreground">{task.oreEffettive || 0}/{task.oreStimate}h</p>}
                       </div>
                     ))}
                     {faseTasks.length === 0 && <p className="text-xs text-muted-foreground text-center py-3">—</p>}

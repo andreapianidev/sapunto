@@ -18,7 +18,8 @@ import {
 import { Label } from '@/components/ui/label';
 import { contratti, clienti } from '@/lib/mockdata';
 import { formatCurrency, formatDate } from '@/lib/utils';
-import { Search, Plus, FileSignature, AlertTriangle, CheckCircle, Clock, Save } from 'lucide-react';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Search, Plus, FileSignature, AlertTriangle, CheckCircle, Clock, Save, MoreHorizontal, Pencil, Trash2, Copy, Download, RefreshCw } from 'lucide-react';
 
 const statoBadge: Record<string, string> = {
   bozza: 'bg-gray-100 text-gray-800',
@@ -48,6 +49,8 @@ export default function ContrattiPage() {
       title="Contratti"
       description="Gestione contratti clienti"
       actions={
+        <div className="flex items-center gap-2">
+        <Button variant="outline" size="sm" onClick={() => alert('Demo: azione eseguita!')}><Download className="mr-2 h-4 w-4" />Export CSV</Button>
         <Dialog>
           <DialogTrigger className="inline-flex items-center justify-center rounded-md text-sm font-medium h-8 px-3 bg-[#1a2332] text-white hover:bg-[#1a2332]/90">
             <Plus className="mr-2 h-4 w-4" />
@@ -85,6 +88,7 @@ export default function ContrattiPage() {
             </form>
           </DialogContent>
         </Dialog>
+        </div>
       }
     >
       <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
@@ -99,7 +103,7 @@ export default function ContrattiPage() {
       <Card><CardContent className="p-0">
         <Table>
           <TableHeader><TableRow>
-            <TableHead>Numero</TableHead><TableHead>Cliente</TableHead><TableHead className="hidden md:table-cell">Tipo</TableHead><TableHead>Stato</TableHead><TableHead className="hidden lg:table-cell">Periodo</TableHead><TableHead className="hidden md:table-cell">Rinnovo</TableHead><TableHead className="text-right">Valore/Anno</TableHead>
+            <TableHead>Numero</TableHead><TableHead>Cliente</TableHead><TableHead className="hidden md:table-cell">Tipo</TableHead><TableHead>Stato</TableHead><TableHead className="hidden lg:table-cell">Periodo</TableHead><TableHead className="hidden md:table-cell">Rinnovo</TableHead><TableHead className="text-right">Valore/Anno</TableHead><TableHead className="w-[50px]">Azioni</TableHead>
           </TableRow></TableHeader>
           <TableBody>{filtered.map((c) => (
             <TableRow key={c.id} className="hover:bg-muted/50">
@@ -110,6 +114,7 @@ export default function ContrattiPage() {
               <TableCell className="hidden lg:table-cell text-xs">{formatDate(c.dataInizio)} → {formatDate(c.dataFine)}</TableCell>
               <TableCell className="hidden md:table-cell text-sm capitalize">{c.rinnovo}</TableCell>
               <TableCell className="text-right font-semibold text-sm">{formatCurrency(c.valoreAnnuale)}</TableCell>
+              <TableCell><DropdownMenu><DropdownMenuTrigger className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground h-8 w-8 p-0"><MoreHorizontal className="h-4 w-4" /></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem onClick={() => alert('Demo: azione eseguita!')}><Pencil className="mr-2 h-4 w-4" />Modifica</DropdownMenuItem><DropdownMenuItem onClick={() => alert('Demo: azione eseguita!')}><RefreshCw className="mr-2 h-4 w-4" />Rinnova</DropdownMenuItem><DropdownMenuSeparator /><DropdownMenuItem onClick={() => alert('Demo: azione eseguita!')} className="text-red-600"><Trash2 className="mr-2 h-4 w-4" />Elimina</DropdownMenuItem></DropdownMenuContent></DropdownMenu></TableCell>
             </TableRow>
           ))}</TableBody>
         </Table>

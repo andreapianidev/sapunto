@@ -5,9 +5,20 @@ import { PageContainer } from '@/components/layout/page-container';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { appuntamenti } from '@/lib/mockdata';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
+} from '@/components/ui/dialog';
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/components/ui/select';
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { appuntamenti, clienti } from '@/lib/mockdata';
 import { formatDate } from '@/lib/utils';
-import { Plus, Calendar, Clock, MapPin, User } from 'lucide-react';
+import { Plus, Calendar, Clock, MapPin, User, MoreHorizontal, Pencil, Trash2, Download } from 'lucide-react';
 
 const giorniSettimana = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom'];
 
@@ -45,10 +56,89 @@ export default function AppuntamentiPage() {
       title="Appuntamenti"
       description="Calendario appuntamenti e visite"
       actions={
-        <Button size="sm" className="bg-[#1a2332] hover:bg-[#1a2332]/90">
-          <Plus className="mr-2 h-4 w-4" />
-          Nuovo Appuntamento
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => alert('Demo: esporta appuntamenti!')}>
+            <Download className="mr-2 h-4 w-4" />
+            Esporta
+          </Button>
+          <Dialog>
+            <DialogTrigger className="inline-flex items-center justify-center rounded-md text-sm font-medium h-8 px-3 bg-[#1a2332] text-white hover:bg-[#1a2332]/90">
+              <Plus className="mr-2 h-4 w-4" />
+              Nuovo Appuntamento
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-lg">
+              <DialogHeader>
+                <DialogTitle>Nuovo Appuntamento</DialogTitle>
+              </DialogHeader>
+              <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); alert('Demo: appuntamento creato!'); }}>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="sm:col-span-2">
+                    <Label>Titolo *</Label>
+                    <Input placeholder="Es. Sopralluogo cliente" className="mt-1" required />
+                  </div>
+                  <div>
+                    <Label>Cliente</Label>
+                    <Select>
+                      <SelectTrigger className="mt-1 w-full">
+                        <SelectValue placeholder="Seleziona cliente" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {clienti.map((c) => (
+                          <SelectItem key={c.id} value={c.id}>{c.ragioneSociale}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>Operatore</Label>
+                    <Input defaultValue="Marco Rossi" className="mt-1" />
+                  </div>
+                  <div>
+                    <Label>Data</Label>
+                    <Input type="date" className="mt-1" />
+                  </div>
+                  <div>
+                    <Label>Ora Inizio</Label>
+                    <Input type="time" className="mt-1" />
+                  </div>
+                  <div>
+                    <Label>Ora Fine</Label>
+                    <Input type="time" className="mt-1" />
+                  </div>
+                  <div>
+                    <Label>Luogo</Label>
+                    <Input placeholder="Es. Via Roma 10, Milano" className="mt-1" />
+                  </div>
+                  <div>
+                    <Label>Stato</Label>
+                    <Select defaultValue="confermato">
+                      <SelectTrigger className="mt-1 w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="confermato">Confermato</SelectItem>
+                        <SelectItem value="in_attesa">In Attesa</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="sm:col-span-2">
+                    <Label>Note</Label>
+                    <textarea
+                      placeholder="Note aggiuntive..."
+                      rows={3}
+                      className="mt-1 flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    />
+                  </div>
+                </div>
+                <div className="flex justify-end">
+                  <Button type="submit" className="bg-[#1a2332] hover:bg-[#1a2332]/90">
+                    Salva Appuntamento
+                  </Button>
+                </div>
+              </form>
+            </DialogContent>
+          </Dialog>
+        </div>
       }
     >
       {/* Week navigation */}
@@ -91,7 +181,7 @@ export default function AppuntamentiPage() {
                   apps.map((app) => (
                     <div
                       key={app.id}
-                      className={`rounded-lg p-2 text-xs border ${
+                      className={`relative rounded-lg p-2 text-xs border ${
                         app.stato === 'confermato'
                           ? 'bg-green-50 border-green-200'
                           : app.stato === 'in_attesa'
@@ -99,7 +189,23 @@ export default function AppuntamentiPage() {
                           : 'bg-red-50 border-red-200'
                       }`}
                     >
-                      <p className="font-semibold truncate">{app.titolo}</p>
+                      <div className="absolute top-1 right-1">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger className="inline-flex items-center justify-center rounded-md transition-colors hover:bg-accent hover:text-accent-foreground h-5 w-5">
+                            <MoreHorizontal className="h-3 w-3" />
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => alert('Demo: azione eseguita!')}>
+                              <Pencil className="mr-2 h-4 w-4" />Modifica
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem onClick={() => alert('Demo: azione eseguita!')} className="text-red-600">
+                              <Trash2 className="mr-2 h-4 w-4" />Elimina
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                      <p className="font-semibold truncate pr-5">{app.titolo}</p>
                       <div className="flex items-center gap-1 mt-1 text-muted-foreground">
                         <Clock className="h-3 w-3" />
                         <span>{app.oraInizio}-{app.oraFine}</span>
@@ -141,7 +247,7 @@ export default function AppuntamentiPage() {
               <div key={app.id} className="flex items-start gap-4 border-b border-border pb-3 last:border-0 last:pb-0">
                 <div className="flex h-12 w-12 flex-col items-center justify-center rounded-lg bg-muted text-center">
                   <span className="text-xs font-bold">{formatDate(app.data).slice(0, 5)}</span>
-                  <span className="text-[10px] text-muted-foreground">{app.oraInizio}</span>
+                  <span className="text-xs text-muted-foreground">{app.oraInizio}</span>
                 </div>
                 <div className="flex-1">
                   <p className="text-sm font-medium">{app.titolo}</p>
@@ -152,13 +258,27 @@ export default function AppuntamentiPage() {
                     {app.oraInizio} - {app.oraFine} | {app.operatoreNome}
                   </p>
                 </div>
-                <Badge variant="secondary" className={`text-[10px] ${
+                <Badge variant="secondary" className={`text-xs ${
                   app.stato === 'confermato' ? 'bg-green-100 text-green-800' :
                   app.stato === 'in_attesa' ? 'bg-yellow-100 text-yellow-800' :
                   'bg-red-100 text-red-800'
                 }`}>
                   {app.stato === 'confermato' ? 'Confermato' : app.stato === 'in_attesa' ? 'In Attesa' : 'Annullato'}
                 </Badge>
+                <DropdownMenu>
+                  <DropdownMenuTrigger className="inline-flex items-center justify-center rounded-md transition-colors hover:bg-accent hover:text-accent-foreground h-8 w-8">
+                    <MoreHorizontal className="h-4 w-4" />
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => alert('Demo: azione eseguita!')}>
+                      <Pencil className="mr-2 h-4 w-4" />Modifica
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => alert('Demo: azione eseguita!')} className="text-red-600">
+                      <Trash2 className="mr-2 h-4 w-4" />Elimina
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             ))}
         </CardContent>

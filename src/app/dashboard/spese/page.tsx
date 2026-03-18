@@ -15,10 +15,13 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
 } from '@/components/ui/dialog';
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Label } from '@/components/ui/label';
 import { spese } from '@/lib/mockdata';
 import { formatCurrency, formatDate } from '@/lib/utils';
-import { Search, Plus, Receipt, CheckCircle, Clock, XCircle, Save } from 'lucide-react';
+import { Search, Plus, Receipt, CheckCircle, Clock, XCircle, Save, MoreHorizontal, Pencil, Trash2, Copy, Download } from 'lucide-react';
 
 const statoBadge: Record<string, string> = {
   da_approvare: 'bg-yellow-100 text-yellow-800',
@@ -59,11 +62,16 @@ export default function SpesePage() {
       title="Spese"
       description="Gestione note spese aziendali"
       actions={
-        <Dialog>
-          <DialogTrigger className="inline-flex items-center justify-center rounded-md text-sm font-medium h-8 px-3 bg-[#1a2332] text-white hover:bg-[#1a2332]/90">
-            <Plus className="mr-2 h-4 w-4" />
-            Nuova Spesa
-          </DialogTrigger>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => alert('Demo: export CSV spese!')}>
+            <Download className="mr-2 h-4 w-4" />
+            Esporta CSV
+          </Button>
+          <Dialog>
+            <DialogTrigger className="inline-flex items-center justify-center rounded-md text-sm font-medium h-8 px-3 bg-[#1a2332] text-white hover:bg-[#1a2332]/90">
+              <Plus className="mr-2 h-4 w-4" />
+              Nuova Spesa
+            </DialogTrigger>
           <DialogContent className="sm:max-w-md">
             <DialogHeader><DialogTitle>Nuova Nota Spese</DialogTitle></DialogHeader>
             <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); alert('Demo: spesa registrata!'); }}>
@@ -91,7 +99,8 @@ export default function SpesePage() {
               <div className="flex justify-end"><Button type="submit" className="bg-[#1a2332] hover:bg-[#1a2332]/90"><Save className="mr-2 h-4 w-4" />Registra</Button></div>
             </form>
           </DialogContent>
-        </Dialog>
+          </Dialog>
+        </div>
       }
     >
       <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
@@ -112,7 +121,7 @@ export default function SpesePage() {
       <Card><CardContent className="p-0">
         <Table>
           <TableHeader><TableRow>
-            <TableHead>Data</TableHead><TableHead>Descrizione</TableHead><TableHead className="hidden md:table-cell">Categoria</TableHead><TableHead className="hidden lg:table-cell">Dipendente</TableHead><TableHead>Stato</TableHead><TableHead className="text-right">Importo</TableHead>
+            <TableHead>Data</TableHead><TableHead>Descrizione</TableHead><TableHead className="hidden md:table-cell">Categoria</TableHead><TableHead className="hidden lg:table-cell">Dipendente</TableHead><TableHead>Stato</TableHead><TableHead className="text-right">Importo</TableHead><TableHead className="w-[50px]">Azioni</TableHead>
           </TableRow></TableHeader>
           <TableBody>{filtered.map((s) => (
             <TableRow key={s.id} className="hover:bg-muted/50">
@@ -122,6 +131,33 @@ export default function SpesePage() {
               <TableCell className="hidden lg:table-cell text-sm">{s.dipendenteNome || '—'}</TableCell>
               <TableCell><Badge variant="secondary" className={`text-xs ${statoBadge[s.stato]}`}>{s.stato.replace('_', ' ')}</Badge></TableCell>
               <TableCell className="text-right font-semibold text-sm">{formatCurrency(s.importo)}</TableCell>
+              <TableCell>
+                <DropdownMenu>
+                  <DropdownMenuTrigger className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground h-8 w-8 p-0">
+                    <MoreHorizontal className="h-4 w-4" />
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => alert('Demo: azione eseguita!')}>
+                      <Pencil className="mr-2 h-4 w-4" />Modifica
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => alert('Demo: azione eseguita!')}>
+                      <Copy className="mr-2 h-4 w-4" />Duplica
+                    </DropdownMenuItem>
+                    {s.stato === 'da_approvare' && (
+                      <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={() => alert('Demo: azione eseguita!')} className="text-green-600">
+                          <CheckCircle className="mr-2 h-4 w-4" />Approva
+                        </DropdownMenuItem>
+                      </>
+                    )}
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => alert('Demo: azione eseguita!')} className="text-red-600">
+                      <Trash2 className="mr-2 h-4 w-4" />Elimina
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </TableCell>
             </TableRow>
           ))}</TableBody>
         </Table>
