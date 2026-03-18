@@ -4,7 +4,7 @@ import { PageContainer } from '@/components/layout/page-container';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { formatCurrency, formatDate, getStatoOrdineColor, getStatoOrdineLabel } from '@/lib/utils';
-import { venditeMensili, topClienti, ordiniPerCanale, ordini, appuntamenti, fatture } from '@/lib/mockdata';
+import { venditeMensili, topClienti, ordiniPerCanale, ordini, appuntamenti, fatture, tickets, leads, contratti, prodotti } from '@/lib/mockdata';
 import {
   DollarSign,
   ShoppingCart,
@@ -13,6 +13,16 @@ import {
   TrendingUp,
   ArrowUpRight,
   ArrowDownRight,
+  AlertTriangle,
+  Activity,
+  Bell,
+  FileText,
+  Ticket,
+  UserPlus,
+  Package,
+  RefreshCw,
+  ClipboardCheck,
+  CircleDot,
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -52,6 +62,132 @@ const kpis = [
     icon: Calendar,
   },
 ];
+
+// Mock activity feed data
+const attivitaRecenti: {
+  id: string;
+  icona: 'ordine' | 'ticket' | 'lead' | 'fattura' | 'contratto' | 'cliente';
+  testo: string;
+  timestamp: string;
+  colore: string;
+}[] = [
+  {
+    id: 'act-1',
+    icona: 'ordine',
+    testo: 'Nuovo ordine ORD-2026-0043 da Digital Home S.r.l.',
+    timestamp: '10 min fa',
+    colore: 'text-blue-600',
+  },
+  {
+    id: 'act-2',
+    icona: 'ticket',
+    testo: 'Ticket TKT-2026-0004 aperto — WiFi laboratorio Scuola San Giuseppe',
+    timestamp: '25 min fa',
+    colore: 'text-red-600',
+  },
+  {
+    id: 'act-3',
+    icona: 'lead',
+    testo: 'Lead Hotel Metropol S.r.l. — proposta inviata',
+    timestamp: '1 ora fa',
+    colore: 'text-purple-600',
+  },
+  {
+    id: 'act-4',
+    icona: 'fattura',
+    testo: 'Fattura FE-2026-0038 emessa per Elettro Forniture Italia S.p.A.',
+    timestamp: '2 ore fa',
+    colore: 'text-green-600',
+  },
+  {
+    id: 'act-5',
+    icona: 'contratto',
+    testo: 'Contratto CTR-2025-004 Centro Medico Salus in scadenza il 31/03',
+    timestamp: '3 ore fa',
+    colore: 'text-amber-600',
+  },
+  {
+    id: 'act-6',
+    icona: 'cliente',
+    testo: 'Nuovo lead Coworking Innovation Hub aggiunto alla pipeline',
+    timestamp: '4 ore fa',
+    colore: 'text-indigo-600',
+  },
+  {
+    id: 'act-7',
+    icona: 'ordine',
+    testo: 'Ordine ORD-2026-0041 spedito a MegaStore Elettronica S.r.l.',
+    timestamp: '5 ore fa',
+    colore: 'text-blue-600',
+  },
+  {
+    id: 'act-8',
+    icona: 'ticket',
+    testo: 'Ticket TKT-2026-0005 risolto — Garanzia UPS TechnoService',
+    timestamp: 'ieri',
+    colore: 'text-green-600',
+  },
+];
+
+const activityIconMap: Record<string, typeof ShoppingCart> = {
+  ordine: ShoppingCart,
+  ticket: Ticket,
+  lead: UserPlus,
+  fattura: FileText,
+  contratto: RefreshCw,
+  cliente: Users,
+};
+
+// Notification items
+const notifiche: {
+  id: string;
+  tipo: 'warning' | 'info' | 'danger';
+  titolo: string;
+  descrizione: string;
+}[] = [
+  {
+    id: 'not-1',
+    tipo: 'warning',
+    titolo: 'Contratto in scadenza',
+    descrizione: 'CTR-2025-004 Centro Medico Salus scade il 31/03/2026 — proporre rinnovo',
+  },
+  {
+    id: 'not-2',
+    tipo: 'danger',
+    titolo: 'Scorte in esaurimento',
+    descrizione: `${prodotti.filter((p) => p.giacenza <= p.scorteMinime).length} prodotti sotto la soglia minima di scorta`,
+  },
+  {
+    id: 'not-3',
+    tipo: 'warning',
+    titolo: 'Spese da approvare',
+    descrizione: '2 note spese in attesa di approvazione',
+  },
+  {
+    id: 'not-4',
+    tipo: 'info',
+    titolo: 'Ticket critici aperti',
+    descrizione: `${tickets.filter((t) => t.priorita === 'critica' && t.stato !== 'chiuso' && t.stato !== 'risolto').length} ticket con priorità critica in lavorazione`,
+  },
+  {
+    id: 'not-5',
+    tipo: 'warning',
+    titolo: 'Contratto bozza da finalizzare',
+    descrizione: 'CTR-2026-006 Assicurazioni Futuro S.a.s. — bozza in attesa di firma',
+  },
+  {
+    id: 'not-6',
+    tipo: 'info',
+    titolo: 'Lead in negoziazione',
+    descrizione: 'Logistica Nord S.p.A. — chiusura prevista entro il 25/03',
+  },
+];
+
+const notificaStyles: Record<string, { bg: string; text: string; border: string }> = {
+  warning: { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-l-amber-500' },
+  danger: { bg: 'bg-red-50', text: 'text-red-700', border: 'border-l-red-500' },
+  info: { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-l-blue-500' },
+};
 
 export default function DashboardPage() {
   const ordiniRecenti = ordini.slice(-5).reverse();
@@ -156,6 +292,102 @@ export default function DashboardPage() {
             </div>
           </CardContent>
         </Card>
+      </div>
+
+      {/* Activity Feed + Fatture in Scadenza Row */}
+      <div className="grid gap-4 lg:grid-cols-7">
+        {/* Attività Recenti */}
+        <Card className="lg:col-span-4">
+          <CardHeader>
+            <CardTitle className="text-base font-semibold flex items-center gap-2">
+              <Activity className="h-4 w-4" />
+              Attività Recenti
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-1">
+              {attivitaRecenti.map((att, index) => {
+                const IconComp = activityIconMap[att.icona] || CircleDot;
+                return (
+                  <div key={att.id} className="flex items-start gap-3 py-2.5 border-b border-border last:border-0">
+                    {/* Timeline dot and line */}
+                    <div className="flex flex-col items-center">
+                      <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#1a2332]/5`}>
+                        <IconComp className={`h-4 w-4 ${att.colore}`} />
+                      </div>
+                    </div>
+                    {/* Content */}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm leading-snug">{att.testo}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">{att.timestamp}</p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Fatture in Scadenza */}
+        <Card className="lg:col-span-3">
+          <CardHeader>
+            <CardTitle className="text-base font-semibold flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 text-red-500" />
+              Fatture in Scadenza
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {fattureInScadenza.length > 0 ? (
+              fattureInScadenza.map((fattura) => (
+                <div key={fattura.id} className="flex items-center justify-between border-b border-border pb-3 last:border-0 last:pb-0">
+                  <div>
+                    <p className="text-sm font-medium">{fattura.clienteNome}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {fattura.numero} — Scad. {formatDate(fattura.dataScadenza)}
+                    </p>
+                  </div>
+                  <div className="text-right flex flex-col items-end gap-1">
+                    <p className="text-sm font-semibold">{formatCurrency(fattura.totale)}</p>
+                    <Badge variant="destructive" className="text-xs">
+                      Non pagata
+                    </Badge>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <p className="text-sm text-muted-foreground">Nessuna fattura in scadenza</p>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Notifiche Row */}
+      <div className="grid gap-4 lg:grid-cols-7">
+        <Card className="lg:col-span-4">
+          <CardHeader>
+            <CardTitle className="text-base font-semibold flex items-center gap-2">
+              <Bell className="h-4 w-4" />
+              Notifiche
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2.5">
+            {notifiche.map((notifica) => {
+              const styles = notificaStyles[notifica.tipo];
+              return (
+                <div
+                  key={notifica.id}
+                  className={`rounded-lg border-l-4 p-3 ${styles.bg} ${styles.border}`}
+                >
+                  <p className={`text-sm font-medium ${styles.text}`}>{notifica.titolo}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">{notifica.descrizione}</p>
+                </div>
+              );
+            })}
+          </CardContent>
+        </Card>
+
+        {/* Placeholder right column to maintain grid alignment — can be used for future cards */}
+        <div className="lg:col-span-3" />
       </div>
 
       {/* Bottom Row */}
