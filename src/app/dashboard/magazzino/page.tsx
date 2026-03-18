@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { PageContainer } from '@/components/layout/page-container';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -20,13 +20,29 @@ import { Label } from '@/components/ui/label';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { Pagination } from '@/components/ui/pagination';
 import { prodotti, movimentiMagazzino } from '@/lib/mockdata';
 import { formatCurrency, formatDate } from '@/lib/utils';
-import { Search, Package, AlertTriangle, ArrowUpCircle, ArrowDownCircle, Plus, MoreHorizontal, Pencil, Trash2, Download } from 'lucide-react';
+import { Search, Package, AlertTriangle, ArrowUpCircle, ArrowDownCircle, Plus, MoreHorizontal, Pencil, Trash2, Download, Eye } from 'lucide-react';
 
 export default function MagazzinoPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategoria, setFilterCategoria] = useState<string>('tutte');
+
+  // Pagination state for inventario tab
+  const [invPage, setInvPage] = useState(1);
+  const [invPageSize, setInvPageSize] = useState(10);
+
+  // Pagination state for movimenti tab
+  const [movPage, setMovPage] = useState(1);
+  const [movPageSize, setMovPageSize] = useState(10);
+
+  // Bulk selection state
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  // Detail view dialog state
+  const [detailProduct, setDetailProduct] = useState<typeof prodotti[number] | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
 
   // TODO: Replace with Supabase query
   const categorie = useMemo(() => {
@@ -43,8 +59,61 @@ export default function MagazzinoPage() {
     });
   }, [searchTerm, filterCategoria]);
 
+  // Reset inventario page when filters change
+  useMemo(() => {
+    setInvPage(1);
+    setSelectedIds(new Set());
+  }, [searchTerm, filterCategoria]);
+
+  // Paginated slices
+  const paginatedInv = useMemo(() => {
+    const start = (invPage - 1) * invPageSize;
+    return filtered.slice(start, start + invPageSize);
+  }, [filtered, invPage, invPageSize]);
+
+  const paginatedMov = useMemo(() => {
+    const start = (movPage - 1) * movPageSize;
+    return movimentiMagazzino.slice(start, start + movPageSize);
+  }, [movPage, movPageSize]);
+
   const sottoscorta = prodotti.filter((p) => p.giacenza <= p.scorteMinime);
   const valoreInventario = prodotti.reduce((sum, p) => sum + p.prezzo * p.giacenza, 0);
+
+  // Bulk selection helpers
+  const allPageSelected = paginatedInv.length > 0 && paginatedInv.every((p) => selectedIds.has(p.id));
+  const somePageSelected = paginatedInv.some((p) => selectedIds.has(p.id));
+
+  const toggleSelectAll = useCallback(() => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (allPageSelected) {
+        paginatedInv.forEach((p) => next.delete(p.id));
+      } else {
+        paginatedInv.forEach((p) => next.add(p.id));
+      }
+      return next;
+    });
+  }, [allPageSelected, paginatedInv]);
+
+  const toggleSelectOne = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }, []);
+
+  // Get recent movements for a product (for detail view)
+  const getProductMovements = useCallback((productId: string) => {
+    return movimentiMagazzino
+      .filter((m) => m.prodottoId === productId)
+      .sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime())
+      .slice(0, 10);
+  }, []);
 
   return (
     <PageContainer
@@ -265,10 +334,55 @@ export default function MagazzinoPage() {
                 </Select>
               </div>
             </CardContent>
+
+            {/* Bulk actions bar */}
+            {selectedIds.size > 0 && (
+              <CardContent className="p-4 pt-0 pb-0">
+                <div className="flex items-center gap-3 rounded-lg bg-muted/60 border px-4 py-2.5 mb-2">
+                  <span className="text-sm font-medium">
+                    {selectedIds.size} {selectedIds.size === 1 ? 'elemento selezionato' : 'elementi selezionati'}
+                  </span>
+                  <div className="flex-1" />
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => {
+                      alert(`Demo: Eliminazione di ${selectedIds.size} prodotti selezionati`);
+                      setSelectedIds(new Set());
+                    }}
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Elimina selezionati
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      alert(`Demo: Esportazione di ${selectedIds.size} prodotti selezionati`);
+                    }}
+                  >
+                    <Download className="h-4 w-4 mr-2" />
+                    Esporta selezionati
+                  </Button>
+                </div>
+              </CardContent>
+            )}
+
             <CardContent className="p-0">
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-[40px] pl-4">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 rounded border-gray-300"
+                        checked={allPageSelected}
+                        ref={(el) => {
+                          if (el) el.indeterminate = somePageSelected && !allPageSelected;
+                        }}
+                        onChange={toggleSelectAll}
+                      />
+                    </TableHead>
                     <TableHead>Prodotto</TableHead>
                     <TableHead className="hidden md:table-cell">SKU</TableHead>
                     <TableHead className="hidden lg:table-cell">Categoria</TableHead>
@@ -279,10 +393,19 @@ export default function MagazzinoPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filtered.map((prodotto) => {
+                  {paginatedInv.map((prodotto) => {
                     const isSottoscorta = prodotto.giacenza <= prodotto.scorteMinime;
+                    const isSelected = selectedIds.has(prodotto.id);
                     return (
-                      <TableRow key={prodotto.id} className="hover:bg-muted/50">
+                      <TableRow key={prodotto.id} className={`hover:bg-muted/50 ${isSelected ? 'bg-muted/30' : ''}`}>
+                        <TableCell className="pl-4">
+                          <input
+                            type="checkbox"
+                            className="h-4 w-4 rounded border-gray-300"
+                            checked={isSelected}
+                            onChange={() => toggleSelectOne(prodotto.id)}
+                          />
+                        </TableCell>
                         <TableCell>
                           <p className="font-medium text-sm">{prodotto.nome}</p>
                           <p className="text-xs text-muted-foreground md:hidden">{prodotto.sku}</p>
@@ -307,36 +430,56 @@ export default function MagazzinoPage() {
                           {formatCurrency(prodotto.prezzo * prodotto.giacenza)}
                         </TableCell>
                         <TableCell className="text-right">
-                          <DropdownMenu>
-                            <DropdownMenuTrigger className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground h-8 w-8 p-0">
-                                <MoreHorizontal className="h-4 w-4" />
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => alert(`Demo: Modifica prodotto "${prodotto.nome}"`)}>
-                                <Pencil className="h-4 w-4 mr-2" />
-                                Modifica
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => alert(`Demo: Carico rapido per "${prodotto.nome}"`)}>
-                                <ArrowUpCircle className="h-4 w-4 mr-2 text-green-600" />
-                                <span className="text-green-600">Carico Rapido</span>
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => alert(`Demo: Scarico rapido per "${prodotto.nome}"`)}>
-                                <ArrowDownCircle className="h-4 w-4 mr-2 text-red-600" />
-                                <span className="text-red-600">Scarico Rapido</span>
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem onClick={() => alert(`Demo: Eliminazione prodotto "${prodotto.nome}"`)}>
-                                <Trash2 className="h-4 w-4 mr-2 text-red-600" />
-                                <span className="text-red-600">Elimina</span>
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
+                          <div className="flex items-center justify-end gap-1">
+                            {/* Detail view button */}
+                            <button
+                              className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground h-8 w-8 p-0"
+                              onClick={() => {
+                                setDetailProduct(prodotto);
+                                setDetailOpen(true);
+                              }}
+                              title="Dettaglio prodotto"
+                            >
+                              <Eye className="h-4 w-4 text-muted-foreground" />
+                            </button>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground h-8 w-8 p-0">
+                                  <MoreHorizontal className="h-4 w-4" />
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => alert(`Demo: Modifica prodotto "${prodotto.nome}"`)}>
+                                  <Pencil className="h-4 w-4 mr-2" />
+                                  Modifica
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => alert(`Demo: Carico rapido per "${prodotto.nome}"`)}>
+                                  <ArrowUpCircle className="h-4 w-4 mr-2 text-green-600" />
+                                  <span className="text-green-600">Carico Rapido</span>
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => alert(`Demo: Scarico rapido per "${prodotto.nome}"`)}>
+                                  <ArrowDownCircle className="h-4 w-4 mr-2 text-red-600" />
+                                  <span className="text-red-600">Scarico Rapido</span>
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem onClick={() => alert(`Demo: Eliminazione prodotto "${prodotto.nome}"`)}>
+                                  <Trash2 className="h-4 w-4 mr-2 text-red-600" />
+                                  <span className="text-red-600">Elimina</span>
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </div>
                         </TableCell>
                       </TableRow>
                     );
                   })}
                 </TableBody>
               </Table>
+              <Pagination
+                currentPage={invPage}
+                totalItems={filtered.length}
+                pageSize={invPageSize}
+                onPageChange={setInvPage}
+                onPageSizeChange={setInvPageSize}
+              />
             </CardContent>
           </Card>
         </TabsContent>
@@ -355,7 +498,7 @@ export default function MagazzinoPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {movimentiMagazzino.map((mov) => (
+                  {paginatedMov.map((mov) => (
                     <TableRow key={mov.id}>
                       <TableCell className="text-sm">{formatDate(mov.data)}</TableCell>
                       <TableCell className="text-sm font-medium">{mov.prodottoNome}</TableCell>
@@ -381,6 +524,13 @@ export default function MagazzinoPage() {
                   ))}
                 </TableBody>
               </Table>
+              <Pagination
+                currentPage={movPage}
+                totalItems={movimentiMagazzino.length}
+                pageSize={movPageSize}
+                onPageChange={setMovPage}
+                onPageSizeChange={setMovPageSize}
+              />
             </CardContent>
           </Card>
         </TabsContent>
@@ -421,6 +571,111 @@ export default function MagazzinoPage() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Product Detail Dialog */}
+      <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Dettaglio Prodotto</DialogTitle>
+          </DialogHeader>
+          {detailProduct && (() => {
+            const movements = getProductMovements(detailProduct.id);
+            const isSottoscorta = detailProduct.giacenza <= detailProduct.scorteMinime;
+            return (
+              <div className="space-y-5">
+                {/* Product info grid */}
+                <div className="grid grid-cols-2 gap-x-6 gap-y-3">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Nome</p>
+                    <p className="text-sm font-medium">{detailProduct.nome}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">SKU</p>
+                    <p className="text-sm font-mono">{detailProduct.sku}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Categoria</p>
+                    <Badge variant="secondary" className="text-xs mt-0.5">{detailProduct.categoria}</Badge>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Prezzo</p>
+                    <p className="text-sm font-semibold">{formatCurrency(detailProduct.prezzo)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Giacenza</p>
+                    <p className={`text-sm font-semibold ${isSottoscorta ? 'text-red-600' : ''}`}>
+                      {detailProduct.giacenza} {detailProduct.unita}
+                      {isSottoscorta && (
+                        <AlertTriangle className="inline-block ml-1 h-3.5 w-3.5 text-red-500" />
+                      )}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Scorte Minime</p>
+                    <p className="text-sm">{detailProduct.scorteMinime} {detailProduct.unita}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Unità di misura</p>
+                    <p className="text-sm">{detailProduct.unita}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Valore in magazzino</p>
+                    <p className="text-sm font-semibold">{formatCurrency(detailProduct.prezzo * detailProduct.giacenza)}</p>
+                  </div>
+                </div>
+
+                {/* Recent movements mini table */}
+                <div>
+                  <h4 className="text-sm font-semibold mb-2">Movimenti Recenti</h4>
+                  {movements.length > 0 ? (
+                    <div className="rounded-md border">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="text-xs h-8">Data</TableHead>
+                            <TableHead className="text-xs h-8">Tipo</TableHead>
+                            <TableHead className="text-xs h-8 text-center">Qtà</TableHead>
+                            <TableHead className="text-xs h-8">Motivo</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {movements.map((mov) => (
+                            <TableRow key={mov.id}>
+                              <TableCell className="text-xs py-1.5">{formatDate(mov.data)}</TableCell>
+                              <TableCell className="py-1.5">
+                                <div className="flex items-center gap-1">
+                                  {mov.tipo === 'carico' ? (
+                                    <ArrowUpCircle className="h-3.5 w-3.5 text-green-500" />
+                                  ) : (
+                                    <ArrowDownCircle className="h-3.5 w-3.5 text-red-500" />
+                                  )}
+                                  <span className={`text-xs font-medium ${
+                                    mov.tipo === 'carico' ? 'text-green-700' : 'text-red-700'
+                                  }`}>
+                                    {mov.tipo === 'carico' ? 'Carico' : 'Scarico'}
+                                  </span>
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-xs text-center font-semibold py-1.5">
+                                {mov.tipo === 'carico' ? '+' : '-'}{mov.quantita}
+                              </TableCell>
+                              <TableCell className="text-xs text-muted-foreground py-1.5">{mov.motivo}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground text-center py-4">
+                      Nessun movimento registrato per questo prodotto
+                    </p>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
     </PageContainer>
   );
 }

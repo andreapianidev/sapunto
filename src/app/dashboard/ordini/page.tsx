@@ -22,6 +22,7 @@ import { Label } from '@/components/ui/label';
 import { ordini, clienti, prodotti } from '@/lib/mockdata';
 import { formatCurrency, formatDate, getStatoOrdineColor, getStatoOrdineLabel } from '@/lib/utils';
 import { Search, Plus, Eye, ShoppingCart, Save, MoreHorizontal, Pencil, Trash2, Copy, Download } from 'lucide-react';
+import { Pagination } from '@/components/ui/pagination';
 import type { Ordine } from '@/lib/types';
 
 export default function OrdiniPage() {
@@ -30,6 +31,8 @@ export default function OrdiniPage() {
   const [filterCanale, setFilterCanale] = useState<string>('tutti');
   const [selectedOrdine, setSelectedOrdine] = useState<Ordine | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   const toggleSelect = (id: string) => {
     setSelectedIds((prev) => {
@@ -257,7 +260,7 @@ export default function OrdiniPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.map((ordine) => (
+              {filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize).map((ordine) => (
                 <TableRow key={ordine.id} className="hover:bg-muted/50">
                   <TableCell>
                     <input
@@ -377,6 +380,7 @@ export default function OrdiniPage() {
               ))}
             </TableBody>
           </Table>
+          <Pagination currentPage={currentPage} totalItems={filtered.length} pageSize={pageSize} onPageChange={setCurrentPage} onPageSizeChange={setPageSize} />
         </CardContent>
       </Card>
     </PageContainer>

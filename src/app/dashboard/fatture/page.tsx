@@ -26,6 +26,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Search, Plus, Eye, FileText, Send, CheckCircle, XCircle, Clock, Save, MoreHorizontal, Pencil, Trash2, Copy, Download, Printer } from 'lucide-react';
+import { Pagination } from '@/components/ui/pagination';
 import type { Fattura } from '@/lib/types';
 
 export default function FatturePage() {
@@ -34,6 +35,8 @@ export default function FatturePage() {
   const [filterSDI, setFilterSDI] = useState<string>('tutti');
   const [selectedFattura, setSelectedFattura] = useState<Fattura | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   const toggleSelect = (id: string) => {
     setSelectedIds((prev) => {
@@ -323,7 +326,7 @@ export default function FatturePage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.map((fattura) => (
+              {filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize).map((fattura) => (
                 <TableRow key={fattura.id} className="hover:bg-muted/50">
                   <TableCell>
                     <input
@@ -454,6 +457,7 @@ export default function FatturePage() {
               ))}
             </TableBody>
           </Table>
+          <Pagination currentPage={currentPage} totalItems={filtered.length} pageSize={pageSize} onPageChange={setCurrentPage} onPageSizeChange={setPageSize} />
         </CardContent>
       </Card>
     </PageContainer>

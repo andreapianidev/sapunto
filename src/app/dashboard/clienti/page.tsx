@@ -20,15 +20,19 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Label } from '@/components/ui/label';
+import { Pagination } from '@/components/ui/pagination';
 import { clienti, ordini, fatture } from '@/lib/mockdata';
 import { formatDate, formatPIVA } from '@/lib/utils';
-import { Search, Plus, Download, Upload, Eye, Building2, User as UserIcon, Save, MoreHorizontal, Pencil, Trash2, Copy } from 'lucide-react';
+import { Search, Plus, Download, Upload, Eye, Building2, User as UserIcon, Save, MoreHorizontal, Pencil, Trash2, Copy, FileUp } from 'lucide-react';
 
 export default function ClientiPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterTipo, setFilterTipo] = useState<string>('tutti');
   const [filterTag, setFilterTag] = useState<string>('tutti');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [showImportDialog, setShowImportDialog] = useState(false);
 
   const toggleSelect = (id: string) => {
     setSelectedIds((prev) => {
@@ -72,14 +76,39 @@ export default function ClientiPage() {
       description={`${clienti.length} clienti totali`}
       actions={
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm">
-            <Upload className="mr-2 h-4 w-4" />
-            Importa CSV
-          </Button>
-          <Button variant="outline" size="sm">
-            <Download className="mr-2 h-4 w-4" />
-            Esporta
-          </Button>
+          <Dialog open={showImportDialog} onOpenChange={setShowImportDialog}>
+            <DialogTrigger className="inline-flex items-center justify-center rounded-md text-sm font-medium border border-input bg-background hover:bg-accent hover:text-accent-foreground h-8 px-3">
+              <Upload className="mr-2 h-4 w-4" />
+              Importa CSV
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader><DialogTitle>Importa Clienti da CSV</DialogTitle></DialogHeader>
+              <div className="space-y-4">
+                <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-8 text-center">
+                  <FileUp className="h-10 w-10 mx-auto text-muted-foreground/50 mb-3" />
+                  <p className="text-sm font-medium">Trascina il file CSV qui</p>
+                  <p className="text-xs text-muted-foreground mt-1">oppure clicca per selezionare</p>
+                  <Input type="file" accept=".csv" className="mt-3" />
+                </div>
+                <div className="bg-muted/50 rounded-lg p-3 text-xs text-muted-foreground space-y-1">
+                  <p className="font-medium text-foreground">Formato richiesto:</p>
+                  <p>Ragione Sociale, Tipo, P.IVA, CF, Email, Telefono, Indirizzo, Citta, CAP, Provincia</p>
+                  <p className="mt-2">
+                    <Button variant="link" className="h-auto p-0 text-xs" onClick={() => alert('Demo: download template CSV')}>
+                      Scarica template CSV
+                    </Button>
+                  </p>
+                </div>
+                <div className="flex justify-end gap-2">
+                  <Button variant="outline" size="sm" onClick={() => setShowImportDialog(false)}>Annulla</Button>
+                  <Button size="sm" className="bg-[#1a2332] hover:bg-[#1a2332]/90" onClick={() => { alert('Demo: importazione 15 clienti completata!'); setShowImportDialog(false); }}>
+                    <Upload className="mr-2 h-4 w-4" />
+                    Importa
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
           <Button variant="outline" size="sm" onClick={() => alert('Demo: esporta CSV!')}>
             <Download className="mr-2 h-4 w-4" />
             Esporta CSV
@@ -248,7 +277,7 @@ export default function ClientiPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredClienti.map((cliente) => (
+              {filteredClienti.slice((currentPage - 1) * pageSize, currentPage * pageSize).map((cliente) => (
                 <TableRow key={cliente.id} className="hover:bg-muted/50">
                   <TableCell>
                     <input
@@ -336,6 +365,7 @@ export default function ClientiPage() {
               Nessun cliente trovato con i filtri selezionati
             </div>
           )}
+          <Pagination currentPage={currentPage} totalItems={filteredClienti.length} pageSize={pageSize} onPageChange={setCurrentPage} onPageSizeChange={setPageSize} />
         </CardContent>
       </Card>
     </PageContainer>

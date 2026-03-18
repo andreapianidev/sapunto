@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
 } from '@/components/ui/dialog';
@@ -18,13 +19,33 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { appuntamenti, clienti } from '@/lib/mockdata';
 import { formatDate } from '@/lib/utils';
-import { Plus, Calendar, Clock, MapPin, User, MoreHorizontal, Pencil, Trash2, Download } from 'lucide-react';
+import { Plus, Calendar, Clock, MapPin, User, MoreHorizontal, Pencil, Trash2, Download, ChevronLeft, ChevronRight } from 'lucide-react';
 
 const giorniSettimana = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom'];
+const giorniSettimanaCompleti = ['Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato', 'Domenica'];
 
 export default function AppuntamentiPage() {
   // Settimana corrente: 16-22 Marzo 2026 (Lun-Dom)
   const [settimanaOffset, setSettimanaOffset] = useState(0);
+  const [meseOffset, setMeseOffset] = useState(0);
+  const [selectedDay, setSelectedDay] = useState<string | null>(null);
+  const [filtroStato, setFiltroStato] = useState<string>('tutti');
+  const [filtroOperatore, setFiltroOperatore] = useState<string>('tutti');
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  const oggi = '2026-03-18';
+
+  // Unique operators from data
+  const operatori = useMemo(() => Array.from(new Set(appuntamenti.map(a => a.operatoreNome))).sort(), []);
+
+  // Filtered appuntamenti
+  const appuntamentiFiltrati = useMemo(() => {
+    return appuntamenti.filter((a) => {
+      if (filtroStato !== 'tutti' && a.stato !== filtroStato) return false;
+      if (filtroOperatore !== 'tutti' && a.operatoreNome !== filtroOperatore) return false;
+      return true;
+    });
+  }, [filtroStato, filtroOperatore]);
 
   const getSettimana = (offset: number) => {
     const base = new Date('2026-03-16'); // Lunedì
@@ -44,12 +65,111 @@ export default function AppuntamentiPage() {
     const map: Record<string, typeof appuntamenti> = {};
     settimana.forEach((d) => {
       const key = d.toISOString().split('T')[0];
-      map[key] = appuntamenti.filter((a) => a.data === key);
+      map[key] = appuntamentiFiltrati.filter((a) => a.data === key);
     });
     return map;
-  }, [settimanaOffset]);
+  }, [settimanaOffset, appuntamentiFiltrati]);
 
-  const oggi = '2026-03-18';
+  // Monthly calendar helpers
+  const getMeseInfo = (offset: number) => {
+    const base = new Date('2026-03-01');
+    base.setMonth(base.getMonth() + offset);
+    const anno = base.getFullYear();
+    const mese = base.getMonth();
+    const primoGiorno = new Date(anno, mese, 1);
+    const ultimoGiorno = new Date(anno, mese + 1, 0);
+    const giorniNelMese = ultimoGiorno.getDate();
+    // 0=Sun -> shift to Mon=0
+    let startDay = primoGiorno.getDay() - 1;
+    if (startDay < 0) startDay = 6;
+    return { anno, mese, giorniNelMese, startDay, primoGiorno };
+  };
+
+  const meseInfo = getMeseInfo(meseOffset);
+
+  const nomiMesi = ['Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno', 'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre'];
+
+  const calendarCells = useMemo(() => {
+    const cells: { date: string; day: number; inMonth: boolean }[] = [];
+    const { anno, mese, giorniNelMese, startDay } = meseInfo;
+
+    // Previous month padding
+    const prevMonth = new Date(anno, mese, 0);
+    for (let i = startDay - 1; i >= 0; i--) {
+      const d = prevMonth.getDate() - i;
+      const dateStr = new Date(anno, mese - 1, d).toISOString().split('T')[0];
+      cells.push({ date: dateStr, day: d, inMonth: false });
+    }
+
+    // Current month days
+    for (let d = 1; d <= giorniNelMese; d++) {
+      const dateStr = new Date(anno, mese, d).toISOString().split('T')[0];
+      cells.push({ date: dateStr, day: d, inMonth: true });
+    }
+
+    // Next month padding to fill grid (always fill to at least 35 cells, or 42 if needed)
+    const totalRows = Math.ceil(cells.length / 7);
+    const totalCells = totalRows * 7;
+    let nextDay = 1;
+    while (cells.length < totalCells) {
+      const dateStr = new Date(anno, mese + 1, nextDay).toISOString().split('T')[0];
+      cells.push({ date: dateStr, day: nextDay, inMonth: false });
+      nextDay++;
+    }
+
+    return cells;
+  }, [meseInfo]);
+
+  const appPerGiornoMese = useMemo(() => {
+    const map: Record<string, typeof appuntamenti> = {};
+    calendarCells.forEach((cell) => {
+      const apps = appuntamentiFiltrati.filter((a) => a.data === cell.date);
+      if (apps.length > 0) map[cell.date] = apps;
+    });
+    return map;
+  }, [calendarCells, appuntamentiFiltrati]);
+
+  // Selected day appointments for monthly view
+  const selectedDayApps = useMemo(() => {
+    if (!selectedDay) return [];
+    return appuntamentiFiltrati
+      .filter((a) => a.data === selectedDay)
+      .sort((a, b) => a.oraInizio.localeCompare(b.oraInizio));
+  }, [selectedDay, appuntamentiFiltrati]);
+
+  // Bulk actions
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const prossimi = useMemo(() => {
+    return appuntamentiFiltrati
+      .filter((a) => a.data >= oggi)
+      .sort((a, b) => a.data.localeCompare(b.data) || a.oraInizio.localeCompare(b.oraInizio))
+      .slice(0, 10);
+  }, [appuntamentiFiltrati]);
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === prossimi.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(prossimi.map((a) => a.id)));
+    }
+  };
+
+  const handleBulkDelete = () => {
+    alert(`Demo: eliminazione di ${selectedIds.size} appuntamenti selezionati!`);
+    setSelectedIds(new Set());
+  };
+
+  const handleBulkExport = () => {
+    alert(`Demo: esportazione di ${selectedIds.size} appuntamenti selezionati!`);
+  };
 
   return (
     <PageContainer
@@ -141,110 +261,361 @@ export default function AppuntamentiPage() {
         </div>
       }
     >
-      {/* Week navigation */}
+      {/* Filters */}
       <Card>
-        <CardContent className="p-4 flex items-center justify-between">
-          <Button variant="outline" size="sm" onClick={() => setSettimanaOffset(settimanaOffset - 1)}>
-            Settimana Prec.
-          </Button>
-          <h3 className="font-semibold">
-            {formatDate(settimana[0].toISOString())} — {formatDate(settimana[6].toISOString())}
-          </h3>
-          <Button variant="outline" size="sm" onClick={() => setSettimanaOffset(settimanaOffset + 1)}>
-            Settimana Succ.
-          </Button>
+        <CardContent className="p-4">
+          <div className="flex flex-wrap items-end gap-4">
+            <div className="min-w-[160px]">
+              <Label className="text-xs text-muted-foreground">Stato</Label>
+              <Select value={filtroStato} onValueChange={(v) => setFiltroStato(v ?? 'tutti')}>
+                <SelectTrigger className="mt-1 w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="tutti">Tutti gli stati</SelectItem>
+                  <SelectItem value="confermato">Confermato</SelectItem>
+                  <SelectItem value="in_attesa">In Attesa</SelectItem>
+                  <SelectItem value="annullato">Annullato</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="min-w-[200px]">
+              <Label className="text-xs text-muted-foreground">Operatore</Label>
+              <Select value={filtroOperatore} onValueChange={(v) => setFiltroOperatore(v ?? 'tutti')}>
+                <SelectTrigger className="mt-1 w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="tutti">Tutti gli operatori</SelectItem>
+                  {operatori.map((op) => (
+                    <SelectItem key={op} value={op}>{op}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {(filtroStato !== 'tutti' || filtroOperatore !== 'tutti') && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => { setFiltroStato('tutti'); setFiltroOperatore('tutti'); }}
+                className="text-muted-foreground"
+              >
+                Resetta filtri
+              </Button>
+            )}
+          </div>
         </CardContent>
       </Card>
 
-      {/* Weekly calendar */}
-      <div className="grid gap-3 lg:grid-cols-7">
-        {settimana.map((giorno, i) => {
-          const key = giorno.toISOString().split('T')[0];
-          const apps = appPerGiorno[key] || [];
-          const isOggi = key === oggi;
-          const isWeekend = i >= 5;
+      {/* Calendar Tabs */}
+      <Tabs defaultValue="settimana">
+        <TabsList>
+          <TabsTrigger value="settimana">Settimana</TabsTrigger>
+          <TabsTrigger value="mese">Mese</TabsTrigger>
+        </TabsList>
 
-          return (
-            <Card key={key} className={`${isOggi ? 'ring-2 ring-[#1a2332]' : ''} ${isWeekend ? 'opacity-60' : ''}`}>
-              <CardHeader className="p-3 pb-2">
-                <CardTitle className={`text-sm font-semibold flex items-center justify-between ${isOggi ? 'text-[#1a2332]' : ''}`}>
-                  <span>{giorniSettimana[i]}</span>
-                  <span className={`flex h-7 w-7 items-center justify-center rounded-full text-xs ${
-                    isOggi ? 'bg-[#1a2332] text-white' : ''
-                  }`}>
-                    {giorno.getDate()}
-                  </span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-3 pt-0 space-y-2">
-                {apps.length > 0 ? (
-                  apps.map((app) => (
-                    <div
-                      key={app.id}
-                      className={`relative rounded-lg p-2 text-xs border ${
-                        app.stato === 'confermato'
-                          ? 'bg-green-50 border-green-200'
-                          : app.stato === 'in_attesa'
-                          ? 'bg-yellow-50 border-yellow-200'
-                          : 'bg-red-50 border-red-200'
+        {/* Weekly View */}
+        <TabsContent value="settimana">
+          {/* Week navigation */}
+          <Card>
+            <CardContent className="p-4 flex items-center justify-between">
+              <Button variant="outline" size="sm" onClick={() => setSettimanaOffset(settimanaOffset - 1)}>
+                <ChevronLeft className="mr-1 h-4 w-4" />
+                Sett. Prec.
+              </Button>
+              <div className="flex items-center gap-2">
+                <h3 className="font-semibold">
+                  {formatDate(settimana[0].toISOString())} — {formatDate(settimana[6].toISOString())}
+                </h3>
+                {settimanaOffset !== 0 && (
+                  <Button variant="outline" size="sm" onClick={() => setSettimanaOffset(0)}>
+                    Oggi
+                  </Button>
+                )}
+              </div>
+              <Button variant="outline" size="sm" onClick={() => setSettimanaOffset(settimanaOffset + 1)}>
+                Sett. Succ.
+                <ChevronRight className="ml-1 h-4 w-4" />
+              </Button>
+            </CardContent>
+          </Card>
+
+          {/* Weekly calendar */}
+          <div className="grid gap-3 lg:grid-cols-7 mt-3">
+            {settimana.map((giorno, i) => {
+              const key = giorno.toISOString().split('T')[0];
+              const apps = appPerGiorno[key] || [];
+              const isOggi = key === oggi;
+              const isWeekend = i >= 5;
+
+              return (
+                <Card key={key} className={`${isOggi ? 'ring-2 ring-[#1a2332]' : ''} ${isWeekend ? 'opacity-60' : ''}`}>
+                  <CardHeader className="p-3 pb-2">
+                    <CardTitle className={`text-sm font-semibold flex items-center justify-between ${isOggi ? 'text-[#1a2332]' : ''}`}>
+                      <span>{giorniSettimana[i]}</span>
+                      <span className={`flex h-7 w-7 items-center justify-center rounded-full text-xs ${
+                        isOggi ? 'bg-[#1a2332] text-white' : ''
+                      }`}>
+                        {giorno.getDate()}
+                      </span>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-3 pt-0 space-y-2">
+                    {apps.length > 0 ? (
+                      apps.map((app) => (
+                        <div
+                          key={app.id}
+                          className={`relative rounded-lg p-2 text-xs border ${
+                            app.stato === 'confermato'
+                              ? 'bg-green-50 border-green-200'
+                              : app.stato === 'in_attesa'
+                              ? 'bg-yellow-50 border-yellow-200'
+                              : 'bg-red-50 border-red-200'
+                          }`}
+                        >
+                          <div className="absolute top-1 right-1">
+                            <DropdownMenu>
+                              <DropdownMenuTrigger className="inline-flex items-center justify-center rounded-md transition-colors hover:bg-accent hover:text-accent-foreground h-5 w-5">
+                                <MoreHorizontal className="h-3 w-3" />
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => alert('Demo: azione eseguita!')}>
+                                  <Pencil className="mr-2 h-4 w-4" />Modifica
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem onClick={() => alert('Demo: azione eseguita!')} className="text-red-600">
+                                  <Trash2 className="mr-2 h-4 w-4" />Elimina
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </div>
+                          <p className="font-semibold truncate pr-5">{app.titolo}</p>
+                          <div className="flex items-center gap-1 mt-1 text-muted-foreground">
+                            <Clock className="h-3 w-3" />
+                            <span>{app.oraInizio}-{app.oraFine}</span>
+                          </div>
+                          {app.clienteNome && (
+                            <div className="flex items-center gap-1 mt-0.5 text-muted-foreground">
+                              <User className="h-3 w-3" />
+                              <span className="truncate">{app.clienteNome}</span>
+                            </div>
+                          )}
+                          {app.luogo && (
+                            <div className="flex items-center gap-1 mt-0.5 text-muted-foreground">
+                              <MapPin className="h-3 w-3" />
+                              <span className="truncate">{app.luogo}</span>
+                            </div>
+                          )}
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-xs text-muted-foreground text-center py-2">—</p>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        </TabsContent>
+
+        {/* Monthly View */}
+        <TabsContent value="mese">
+          {/* Month navigation */}
+          <Card>
+            <CardContent className="p-4 flex items-center justify-between">
+              <Button variant="outline" size="sm" onClick={() => setMeseOffset(meseOffset - 1)}>
+                <ChevronLeft className="mr-1 h-4 w-4" />
+                Mese Prec.
+              </Button>
+              <div className="flex items-center gap-2">
+                <h3 className="font-semibold">
+                  {nomiMesi[meseInfo.mese]} {meseInfo.anno}
+                </h3>
+                {meseOffset !== 0 && (
+                  <Button variant="outline" size="sm" onClick={() => setMeseOffset(0)}>
+                    Oggi
+                  </Button>
+                )}
+              </div>
+              <Button variant="outline" size="sm" onClick={() => setMeseOffset(meseOffset + 1)}>
+                Mese Succ.
+                <ChevronRight className="ml-1 h-4 w-4" />
+              </Button>
+            </CardContent>
+          </Card>
+
+          {/* Monthly calendar grid */}
+          <Card className="mt-3">
+            <CardContent className="p-4">
+              {/* Day headers */}
+              <div className="grid grid-cols-7 gap-px mb-1">
+                {giorniSettimana.map((g) => (
+                  <div key={g} className="text-center text-xs font-semibold text-muted-foreground py-2">
+                    {g}
+                  </div>
+                ))}
+              </div>
+              {/* Day cells */}
+              <div className="grid grid-cols-7 gap-px">
+                {calendarCells.map((cell) => {
+                  const apps = appPerGiornoMese[cell.date] || [];
+                  const isOggi = cell.date === oggi;
+                  const isSelected = cell.date === selectedDay;
+
+                  return (
+                    <button
+                      key={cell.date}
+                      type="button"
+                      onClick={() => setSelectedDay(cell.date === selectedDay ? null : cell.date)}
+                      className={`relative min-h-[72px] p-1.5 text-left border rounded-md transition-colors ${
+                        !cell.inMonth ? 'bg-muted/30 text-muted-foreground/50' : 'hover:bg-muted/50'
+                      } ${isSelected ? 'ring-2 ring-[#1a2332] bg-muted/40' : ''} ${
+                        isOggi && !isSelected ? 'bg-blue-50 border-blue-200' : 'border-border'
                       }`}
                     >
-                      <div className="absolute top-1 right-1">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger className="inline-flex items-center justify-center rounded-md transition-colors hover:bg-accent hover:text-accent-foreground h-5 w-5">
-                            <MoreHorizontal className="h-3 w-3" />
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => alert('Demo: azione eseguita!')}>
-                              <Pencil className="mr-2 h-4 w-4" />Modifica
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem onClick={() => alert('Demo: azione eseguita!')} className="text-red-600">
-                              <Trash2 className="mr-2 h-4 w-4" />Elimina
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
-                      <p className="font-semibold truncate pr-5">{app.titolo}</p>
-                      <div className="flex items-center gap-1 mt-1 text-muted-foreground">
-                        <Clock className="h-3 w-3" />
-                        <span>{app.oraInizio}-{app.oraFine}</span>
-                      </div>
-                      {app.clienteNome && (
-                        <div className="flex items-center gap-1 mt-0.5 text-muted-foreground">
-                          <User className="h-3 w-3" />
-                          <span className="truncate">{app.clienteNome}</span>
+                      <span className={`text-xs font-medium ${
+                        isOggi
+                          ? 'inline-flex h-5 w-5 items-center justify-center rounded-full bg-[#1a2332] text-white'
+                          : ''
+                      }`}>
+                        {cell.day}
+                      </span>
+                      {apps.length > 0 && (
+                        <div className="mt-1 space-y-0.5">
+                          {apps.length <= 2 ? (
+                            apps.map((app) => (
+                              <div
+                                key={app.id}
+                                className={`truncate rounded px-1 py-0.5 text-[10px] leading-tight font-medium ${
+                                  app.stato === 'confermato'
+                                    ? 'bg-green-100 text-green-800'
+                                    : app.stato === 'in_attesa'
+                                    ? 'bg-yellow-100 text-yellow-800'
+                                    : 'bg-red-100 text-red-800'
+                                }`}
+                              >
+                                {app.titolo}
+                              </div>
+                            ))
+                          ) : (
+                            <>
+                              <div
+                                className={`truncate rounded px-1 py-0.5 text-[10px] leading-tight font-medium ${
+                                  apps[0].stato === 'confermato'
+                                    ? 'bg-green-100 text-green-800'
+                                    : apps[0].stato === 'in_attesa'
+                                    ? 'bg-yellow-100 text-yellow-800'
+                                    : 'bg-red-100 text-red-800'
+                                }`}
+                              >
+                                {apps[0].titolo}
+                              </div>
+                              <div className="text-[10px] text-muted-foreground font-medium px-1">
+                                +{apps.length - 1} altri
+                              </div>
+                            </>
+                          )}
                         </div>
                       )}
-                      {app.luogo && (
-                        <div className="flex items-center gap-1 mt-0.5 text-muted-foreground">
-                          <MapPin className="h-3 w-3" />
-                          <span className="truncate">{app.luogo}</span>
-                        </div>
-                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Selected day detail */}
+          {selectedDay && (
+            <Card className="mt-3">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base font-semibold flex items-center gap-2">
+                  <Calendar className="h-4 w-4" />
+                  Appuntamenti del {formatDate(selectedDay)}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {selectedDayApps.length > 0 ? (
+                  selectedDayApps.map((app) => (
+                    <div key={app.id} className="flex items-start gap-4 border-b border-border pb-3 last:border-0 last:pb-0">
+                      <div className="flex h-12 w-12 flex-col items-center justify-center rounded-lg bg-muted text-center">
+                        <Clock className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-xs text-muted-foreground">{app.oraInizio}</span>
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm font-medium">{app.titolo}</p>
+                        {app.clienteNome && (
+                          <p className="text-xs text-muted-foreground">{app.clienteNome}</p>
+                        )}
+                        <p className="text-xs text-muted-foreground">
+                          {app.oraInizio} - {app.oraFine} | {app.operatoreNome}
+                        </p>
+                        {app.luogo && (
+                          <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+                            <MapPin className="h-3 w-3" />{app.luogo}
+                          </p>
+                        )}
+                      </div>
+                      <Badge variant="secondary" className={`text-xs ${
+                        app.stato === 'confermato' ? 'bg-green-100 text-green-800' :
+                        app.stato === 'in_attesa' ? 'bg-yellow-100 text-yellow-800' :
+                        'bg-red-100 text-red-800'
+                      }`}>
+                        {app.stato === 'confermato' ? 'Confermato' : app.stato === 'in_attesa' ? 'In Attesa' : 'Annullato'}
+                      </Badge>
                     </div>
                   ))
                 ) : (
-                  <p className="text-xs text-muted-foreground text-center py-2">—</p>
+                  <p className="text-sm text-muted-foreground text-center py-4">Nessun appuntamento in questa giornata</p>
                 )}
               </CardContent>
             </Card>
-          );
-        })}
-      </div>
+          )}
+        </TabsContent>
+      </Tabs>
 
       {/* Lista appuntamenti prossimi */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base font-semibold">Prossimi Appuntamenti</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base font-semibold">Prossimi Appuntamenti</CardTitle>
+            {selectedIds.size > 0 && (
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground">{selectedIds.size} selezionati</span>
+                <Button variant="outline" size="sm" onClick={handleBulkExport}>
+                  <Download className="mr-1 h-3 w-3" />
+                  Esporta
+                </Button>
+                <Button variant="outline" size="sm" onClick={handleBulkDelete} className="text-red-600 hover:text-red-700 hover:bg-red-50">
+                  <Trash2 className="mr-1 h-3 w-3" />
+                  Elimina
+                </Button>
+              </div>
+            )}
+          </div>
         </CardHeader>
         <CardContent className="space-y-3">
-          {appuntamenti
-            .filter((a) => a.data >= oggi)
-            .sort((a, b) => a.data.localeCompare(b.data) || a.oraInizio.localeCompare(b.oraInizio))
-            .slice(0, 10)
-            .map((app) => (
+          {/* Select all */}
+          {prossimi.length > 0 && (
+            <div className="flex items-center gap-3 pb-2 border-b border-border">
+              <input
+                type="checkbox"
+                className="h-4 w-4 rounded border-gray-300"
+                checked={selectedIds.size === prossimi.length && prossimi.length > 0}
+                onChange={toggleSelectAll}
+              />
+              <span className="text-xs text-muted-foreground">Seleziona tutti</span>
+            </div>
+          )}
+          {prossimi.map((app) => (
               <div key={app.id} className="flex items-start gap-4 border-b border-border pb-3 last:border-0 last:pb-0">
+                <div className="flex items-center pt-1">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 rounded border-gray-300"
+                    checked={selectedIds.has(app.id)}
+                    onChange={() => toggleSelect(app.id)}
+                  />
+                </div>
                 <div className="flex h-12 w-12 flex-col items-center justify-center rounded-lg bg-muted text-center">
                   <span className="text-xs font-bold">{formatDate(app.data).slice(0, 5)}</span>
                   <span className="text-xs text-muted-foreground">{app.oraInizio}</span>
@@ -281,6 +652,9 @@ export default function AppuntamentiPage() {
                 </DropdownMenu>
               </div>
             ))}
+          {prossimi.length === 0 && (
+            <p className="text-sm text-muted-foreground text-center py-4">Nessun appuntamento trovato con i filtri selezionati</p>
+          )}
         </CardContent>
       </Card>
     </PageContainer>

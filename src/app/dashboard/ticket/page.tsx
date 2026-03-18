@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { PageContainer } from '@/components/layout/page-container';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -17,10 +17,11 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
+import { Pagination } from '@/components/ui/pagination';
 import { tickets } from '@/lib/mockdata';
 import { formatDate, formatDateTime } from '@/lib/utils';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Search, Plus, Eye, LifeBuoy, AlertCircle, CheckCircle, Clock, MessageSquare, MoreHorizontal, Pencil, Trash2, Copy, Download } from 'lucide-react';
+import { Search, Plus, Eye, LifeBuoy, AlertCircle, CheckCircle, Clock, MessageSquare, MoreHorizontal, Pencil, Trash2, Copy, Download, X } from 'lucide-react';
 import type { Ticket } from '@/lib/types';
 
 const statoBadge: Record<string, string> = {
@@ -41,15 +42,70 @@ const prioritaBadge: Record<string, string> = {
 export default function TicketPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStato, setFilterStato] = useState<string>('tutti');
+  const [filterPriorita, setFilterPriorita] = useState<string>('tutte');
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   const filtered = useMemo(() => {
     return tickets.filter((t) => {
       const matchSearch = t.oggetto.toLowerCase().includes(searchTerm.toLowerCase()) || t.clienteNome?.toLowerCase().includes(searchTerm.toLowerCase());
       const matchStato = filterStato === 'tutti' || t.stato === filterStato;
-      return matchSearch && matchStato;
+      const matchPriorita = filterPriorita === 'tutte' || t.priorita === filterPriorita;
+      return matchSearch && matchStato && matchPriorita;
     });
-  }, [searchTerm, filterStato]);
+  }, [searchTerm, filterStato, filterPriorita]);
+
+  // Reset to page 1 when filters change
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const safeCurrentPage = currentPage > totalPages ? 1 : currentPage;
+  const paginatedResults = useMemo(() => {
+    const start = (safeCurrentPage - 1) * pageSize;
+    return filtered.slice(start, start + pageSize);
+  }, [filtered, safeCurrentPage, pageSize]);
+
+  // Selection helpers
+  const allPageIds = useMemo(() => paginatedResults.map((t) => t.id), [paginatedResults]);
+  const allPageSelected = allPageIds.length > 0 && allPageIds.every((id) => selectedIds.has(id));
+  const somePageSelected = allPageIds.some((id) => selectedIds.has(id));
+
+  const toggleSelectAll = useCallback(() => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (allPageSelected) {
+        allPageIds.forEach((id) => next.delete(id));
+      } else {
+        allPageIds.forEach((id) => next.add(id));
+      }
+      return next;
+    });
+  }, [allPageIds, allPageSelected]);
+
+  const toggleSelect = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }, []);
+
+  const clearSelection = useCallback(() => {
+    setSelectedIds(new Set());
+  }, []);
+
+  const handlePageChange = useCallback((page: number) => {
+    setCurrentPage(page);
+  }, []);
+
+  const handlePageSizeChange = useCallback((size: number) => {
+    setPageSize(size);
+    setCurrentPage(1);
+  }, []);
 
   const stats = {
     aperti: tickets.filter((t) => t.stato === 'aperto' || t.stato === 'in_lavorazione').length,
@@ -146,7 +202,7 @@ export default function TicketPage() {
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input placeholder="Cerca ticket..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-9" />
             </div>
-            <Select value={filterStato} onValueChange={(v) => v && setFilterStato(v)}>
+            <Select value={filterStato} onValueChange={(v) => { if (v) { setFilterStato(v); setCurrentPage(1); } }}>
               <SelectTrigger className="w-[160px]"><SelectValue placeholder="Stato" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="tutti">Tutti</SelectItem>
@@ -157,9 +213,49 @@ export default function TicketPage() {
                 <SelectItem value="chiuso">Chiuso</SelectItem>
               </SelectContent>
             </Select>
+            <Select value={filterPriorita} onValueChange={(v) => { if (v) { setFilterPriorita(v); setCurrentPage(1); } }}>
+              <SelectTrigger className="w-[160px]"><SelectValue placeholder="Priorità" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="tutte">Tutte</SelectItem>
+                <SelectItem value="bassa">Bassa</SelectItem>
+                <SelectItem value="media">Media</SelectItem>
+                <SelectItem value="alta">Alta</SelectItem>
+                <SelectItem value="critica">Critica</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </CardContent>
       </Card>
+
+      {/* Bulk actions bar */}
+      {selectedIds.size > 0 && (
+        <Card>
+          <CardContent className="p-3">
+            <div className="flex items-center gap-3 flex-wrap">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium">{selectedIds.size} selezionat{selectedIds.size === 1 ? 'o' : 'i'}</span>
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={clearSelection}>
+                  <X className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+              <div className="flex items-center gap-2 ml-auto">
+                <Button size="sm" variant="default" className="bg-[#1a2332] hover:bg-[#1a2332]/90" onClick={() => alert('Demo: ticket chiusi!')}>
+                  <CheckCircle className="mr-2 h-4 w-4" />
+                  Chiudi selezionati
+                </Button>
+                <Button size="sm" variant="destructive" onClick={() => alert('Demo: ticket eliminati!')}>
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Elimina selezionati
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => alert('Demo: ticket esportati!')}>
+                  <Download className="mr-2 h-4 w-4" />
+                  Esporta selezionati
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid gap-4 lg:grid-cols-5">
         <Card className="lg:col-span-3">
@@ -167,6 +263,15 @@ export default function TicketPage() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-[40px]">
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 rounded border-gray-300"
+                      checked={allPageSelected}
+                      ref={(el) => { if (el) el.indeterminate = somePageSelected && !allPageSelected; }}
+                      onChange={toggleSelectAll}
+                    />
+                  </TableHead>
                   <TableHead>Ticket</TableHead>
                   <TableHead className="hidden md:table-cell">Cliente</TableHead>
                   <TableHead>Priorità</TableHead>
@@ -176,8 +281,16 @@ export default function TicketPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filtered.map((t) => (
+                {paginatedResults.map((t) => (
                   <TableRow key={t.id} className={`cursor-pointer hover:bg-muted/50 ${selectedTicket?.id === t.id ? 'bg-muted' : ''}`} onClick={() => setSelectedTicket(t)}>
+                    <TableCell onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 rounded border-gray-300"
+                        checked={selectedIds.has(t.id)}
+                        onChange={() => toggleSelect(t.id)}
+                      />
+                    </TableCell>
                     <TableCell>
                       <p className="font-medium text-sm">{t.numero}</p>
                       <p className="text-xs text-muted-foreground truncate max-w-[200px]">{t.oggetto}</p>
@@ -191,6 +304,13 @@ export default function TicketPage() {
                 ))}
               </TableBody>
             </Table>
+            <Pagination
+              currentPage={safeCurrentPage}
+              totalItems={filtered.length}
+              pageSize={pageSize}
+              onPageChange={handlePageChange}
+              onPageSizeChange={handlePageSizeChange}
+            />
           </CardContent>
         </Card>
 

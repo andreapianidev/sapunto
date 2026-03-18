@@ -1,31 +1,163 @@
 'use client';
 
+import { useState, useMemo } from 'react';
 import { PageContainer } from '@/components/layout/page-container';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
+} from '@/components/ui/dialog';
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/components/ui/select';
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Pagination } from '@/components/ui/pagination';
 import { tenants, piani } from '@/lib/mockdata';
 import { formatDate, formatCurrency, formatPIVA } from '@/lib/utils';
-import { Plus, MoreHorizontal, Pause, Edit, Trash2 } from 'lucide-react';
-import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+import { Plus, MoreHorizontal, Pause, Edit, Trash2, Search, Eye, Save, Building2, Users, DollarSign } from 'lucide-react';
+import type { Tenant } from '@/lib/types';
 
 export default function TenantPage() {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterPiano, setFilterPiano] = useState<string>('tutti');
+  const [filterStato, setFilterStato] = useState<string>('tutti');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [detailTenant, setDetailTenant] = useState<Tenant | null>(null);
+
+  const filtered = useMemo(() => {
+    return tenants.filter((t) => {
+      const matchSearch = t.ragioneSociale.toLowerCase().includes(searchTerm.toLowerCase()) || t.citta.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchPiano = filterPiano === 'tutti' || t.piano === filterPiano;
+      const matchStato = filterStato === 'tutti' || t.stato === filterStato;
+      return matchSearch && matchPiano && matchStato;
+    });
+  }, [searchTerm, filterPiano, filterStato]);
+
+  const mrrTotale = tenants.reduce((s, t) => {
+    const piano = piani.find((p) => p.id === t.piano);
+    return s + (piano ? piano.prezzoMensile : 0);
+  }, 0);
+
   return (
     <PageContainer
       title="Gestione Tenant"
       description={`${tenants.length} aziende registrate`}
       actions={
-        <Button size="sm" className="bg-[#1a2332] hover:bg-[#1a2332]/90">
-          <Plus className="mr-2 h-4 w-4" />
-          Nuovo Tenant
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => alert('Demo: esporta tenant!')}>
+            <DollarSign className="mr-2 h-4 w-4" />
+            Report
+          </Button>
+          <Dialog>
+            <DialogTrigger className="inline-flex items-center justify-center rounded-md text-sm font-medium h-8 px-3 bg-[#1a2332] text-white hover:bg-[#1a2332]/90">
+              <Plus className="mr-2 h-4 w-4" />
+              Nuovo Tenant
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-lg">
+              <DialogHeader><DialogTitle>Nuovo Tenant</DialogTitle></DialogHeader>
+              <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); alert('Demo: tenant creato!'); }}>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="sm:col-span-2"><Label>Ragione Sociale *</Label><Input placeholder="Nome azienda" className="mt-1" required /></div>
+                  <div><Label>Partita IVA *</Label><Input placeholder="01234567890" className="mt-1" required /></div>
+                  <div><Label>Email Admin *</Label><Input type="email" placeholder="admin@azienda.it" className="mt-1" required /></div>
+                  <div><Label>Città</Label><Input placeholder="Milano" className="mt-1" /></div>
+                  <div>
+                    <Label>Piano</Label>
+                    <Select defaultValue="professional">
+                      <SelectTrigger className="mt-1 w-full"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="base">Base</SelectItem>
+                        <SelectItem value="professional">Professional</SelectItem>
+                        <SelectItem value="premium">Premium</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div><Label>Max Utenti</Label><Input type="number" defaultValue="10" className="mt-1" /></div>
+                  <div>
+                    <Label>Stato</Label>
+                    <Select defaultValue="attivo">
+                      <SelectTrigger className="mt-1 w-full"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="attivo">Attivo</SelectItem>
+                        <SelectItem value="trial">Trial</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="flex justify-end"><Button type="submit" className="bg-[#1a2332] hover:bg-[#1a2332]/90"><Save className="mr-2 h-4 w-4" />Crea Tenant</Button></div>
+              </form>
+            </DialogContent>
+          </Dialog>
+        </div>
       }
     >
+      {/* Stats */}
+      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+        <Card><CardContent className="p-4 flex items-center gap-3"><div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 text-blue-700"><Building2 className="h-5 w-5" /></div><div><p className="text-2xl font-bold">{tenants.length}</p><p className="text-xs text-muted-foreground">Tenant Totali</p></div></CardContent></Card>
+        <Card><CardContent className="p-4 flex items-center gap-3"><div className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-50 text-green-700"><Building2 className="h-5 w-5" /></div><div><p className="text-2xl font-bold">{tenants.filter((t) => t.stato === 'attivo').length}</p><p className="text-xs text-muted-foreground">Attivi</p></div></CardContent></Card>
+        <Card><CardContent className="p-4 flex items-center gap-3"><div className="flex h-10 w-10 items-center justify-center rounded-lg bg-purple-50 text-purple-700"><Users className="h-5 w-5" /></div><div><p className="text-2xl font-bold">{tenants.reduce((s, t) => s + t.utentiAttivi, 0)}</p><p className="text-xs text-muted-foreground">Utenti Totali</p></div></CardContent></Card>
+        <Card><CardContent className="p-4 flex items-center gap-3"><div className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-50 text-green-700"><DollarSign className="h-5 w-5" /></div><div><p className="text-xl font-bold">{formatCurrency(mrrTotale)}</p><p className="text-xs text-muted-foreground">MRR Totale</p></div></CardContent></Card>
+      </div>
+
+      {/* Filters */}
+      <Card><CardContent className="p-4"><div className="flex flex-col gap-3 md:flex-row md:items-center">
+        <div className="relative flex-1"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><Input placeholder="Cerca tenant..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-9" /></div>
+        <Select value={filterPiano} onValueChange={(v) => v && setFilterPiano(v)}><SelectTrigger className="w-[160px]"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="tutti">Tutti i Piani</SelectItem><SelectItem value="base">Base</SelectItem><SelectItem value="professional">Professional</SelectItem><SelectItem value="premium">Premium</SelectItem></SelectContent></Select>
+        <Select value={filterStato} onValueChange={(v) => v && setFilterStato(v)}><SelectTrigger className="w-[160px]"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="tutti">Tutti gli Stati</SelectItem><SelectItem value="attivo">Attivo</SelectItem><SelectItem value="sospeso">Sospeso</SelectItem><SelectItem value="trial">Trial</SelectItem></SelectContent></Select>
+      </div></CardContent></Card>
+
+      {/* Detail dialog */}
+      <Dialog open={!!detailTenant} onOpenChange={(open) => !open && setDetailTenant(null)}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader><DialogTitle>Dettaglio Tenant</DialogTitle></DialogHeader>
+          {detailTenant && (() => {
+            const piano = piani.find((p) => p.id === detailTenant.piano);
+            return (
+              <div className="space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-[#1a2332] text-white font-bold text-lg">
+                    {detailTenant.ragioneSociale.charAt(0)}
+                  </div>
+                  <div>
+                    <p className="font-semibold text-lg">{detailTenant.ragioneSociale}</p>
+                    <p className="text-sm text-muted-foreground">{detailTenant.citta}</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div><p className="text-muted-foreground">Partita IVA</p><p className="font-medium font-mono">{formatPIVA(detailTenant.partitaIva)}</p></div>
+                  <div><p className="text-muted-foreground">Stato</p><Badge variant="secondary" className={`text-xs ${detailTenant.stato === 'attivo' ? 'bg-green-100 text-green-800' : detailTenant.stato === 'sospeso' ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800'}`}>{detailTenant.stato}</Badge></div>
+                  <div><p className="text-muted-foreground">Piano</p><Badge variant="secondary" className={`text-xs ${detailTenant.piano === 'premium' ? 'bg-purple-100 text-purple-800' : detailTenant.piano === 'professional' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'}`}>{detailTenant.piano}</Badge></div>
+                  <div><p className="text-muted-foreground">MRR</p><p className="font-bold">{piano ? formatCurrency(piano.prezzoMensile) : '—'}/mese</p></div>
+                  <div><p className="text-muted-foreground">Utenti</p><p className="font-medium">{detailTenant.utentiAttivi} / {detailTenant.maxUtenti}</p></div>
+                  <div><p className="text-muted-foreground">Data Creazione</p><p className="font-medium">{formatDate(detailTenant.dataCreazione)}</p></div>
+                  <div><p className="text-muted-foreground">Email</p><p className="font-medium">{detailTenant.email}</p></div>
+                  <div><p className="text-muted-foreground">Telefono</p><p className="font-medium">{detailTenant.telefono || '—'}</p></div>
+                </div>
+                {piano && (
+                  <div className="border-t pt-3">
+                    <p className="text-sm font-semibold mb-2">Limiti Piano {piano.nome}</p>
+                    <div className="grid grid-cols-3 gap-2 text-xs text-muted-foreground">
+                      <div className="bg-muted/50 rounded p-2 text-center"><p className="font-semibold text-foreground">{piano.maxUtenti}</p><p>Max Utenti</p></div>
+                      <div className="bg-muted/50 rounded p-2 text-center"><p className="font-semibold text-foreground">{piano.maxClienti}</p><p>Max Clienti</p></div>
+                      <div className="bg-muted/50 rounded p-2 text-center"><p className="font-semibold text-foreground">{piano.maxFatture}</p><p>Max Fatture</p></div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
+
       <Card>
         <CardContent className="p-0">
           <Table>
@@ -42,7 +174,7 @@ export default function TenantPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {tenants.map((t) => {
+              {filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize).map((t) => {
                 const piano = piani.find((p) => p.id === t.piano);
                 return (
                   <TableRow key={t.id} className="hover:bg-muted/50">
@@ -84,31 +216,38 @@ export default function TenantPage() {
                       {piano ? formatCurrency(piano.prezzoMensile) : '—'}
                     </TableCell>
                     <TableCell className="text-right">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground h-8 w-8">
-                          <MoreHorizontal className="h-4 w-4" />
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem>
-                            <Edit className="mr-2 h-4 w-4" />
-                            Modifica Piano
-                          </DropdownMenuItem>
-                          <DropdownMenuItem>
-                            <Pause className="mr-2 h-4 w-4" />
-                            Sospendi
-                          </DropdownMenuItem>
-                          <DropdownMenuItem className="text-red-600">
-                            <Trash2 className="mr-2 h-4 w-4" />
-                            Elimina
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                      <div className="flex items-center justify-end gap-1">
+                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setDetailTenant(t)}>
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground h-8 w-8">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => alert('Demo: modifica piano!')}>
+                              <Edit className="mr-2 h-4 w-4" />
+                              Modifica Piano
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => alert('Demo: sospendi tenant!')}>
+                              <Pause className="mr-2 h-4 w-4" />
+                              Sospendi
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem className="text-red-600" onClick={() => alert('Demo: elimina tenant!')}>
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Elimina
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
                     </TableCell>
                   </TableRow>
                 );
               })}
             </TableBody>
           </Table>
+          <Pagination currentPage={currentPage} totalItems={filtered.length} pageSize={pageSize} onPageChange={setCurrentPage} onPageSizeChange={setPageSize} />
         </CardContent>
       </Card>
     </PageContainer>

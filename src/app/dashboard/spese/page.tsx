@@ -19,9 +19,10 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Label } from '@/components/ui/label';
+import { Pagination } from '@/components/ui/pagination';
 import { spese } from '@/lib/mockdata';
 import { formatCurrency, formatDate } from '@/lib/utils';
-import { Search, Plus, Receipt, CheckCircle, Clock, XCircle, Save, MoreHorizontal, Pencil, Trash2, Copy, Download } from 'lucide-react';
+import { Search, Plus, Receipt, CheckCircle, Clock, XCircle, Save, MoreHorizontal, Pencil, Trash2, Copy, Download, Eye } from 'lucide-react';
 
 const statoBadge: Record<string, string> = {
   da_approvare: 'bg-yellow-100 text-yellow-800',
@@ -44,6 +45,10 @@ export default function SpesePage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategoria, setFilterCategoria] = useState<string>('tutte');
   const [filterStato, setFilterStato] = useState<string>('tutti');
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [detailItem, setDetailItem] = useState<typeof spese[number] | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   const filtered = useMemo(() => {
     return spese.filter((s) => {
@@ -54,8 +59,51 @@ export default function SpesePage() {
     });
   }, [searchTerm, filterCategoria, filterStato]);
 
+  // Pagination
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const safePage = Math.min(currentPage, totalPages);
+  const paginatedItems = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
+
   const totaleMese = spese.reduce((s, sp) => s + sp.importo, 0);
   const daApprovare = spese.filter((s) => s.stato === 'da_approvare');
+
+  // Bulk select helpers
+  const allPageIds = paginatedItems.map((s) => s.id);
+  const allSelected = allPageIds.length > 0 && allPageIds.every((id) => selectedIds.has(id));
+  const someSelected = allPageIds.some((id) => selectedIds.has(id));
+
+  const toggleSelectAll = () => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (allSelected) {
+        allPageIds.forEach((id) => next.delete(id));
+      } else {
+        allPageIds.forEach((id) => next.add(id));
+      }
+      return next;
+    });
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
+
+  const handlePageSizeChange = (size: number) => {
+    setPageSize(size);
+    setCurrentPage(1);
+  };
 
   return (
     <PageContainer
@@ -112,19 +160,53 @@ export default function SpesePage() {
 
       <Card><CardContent className="p-4">
         <div className="flex flex-col gap-3 md:flex-row md:items-center">
-          <div className="relative flex-1"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><Input placeholder="Cerca spesa..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-9" /></div>
-          <Select value={filterCategoria} onValueChange={(v) => v && setFilterCategoria(v)}><SelectTrigger className="w-[160px]"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="tutte">Tutte</SelectItem><SelectItem value="trasporti">Trasporti</SelectItem><SelectItem value="pasti">Pasti</SelectItem><SelectItem value="materiali">Materiali</SelectItem><SelectItem value="servizi">Servizi</SelectItem><SelectItem value="utenze">Utenze</SelectItem><SelectItem value="altro">Altro</SelectItem></SelectContent></Select>
-          <Select value={filterStato} onValueChange={(v) => v && setFilterStato(v)}><SelectTrigger className="w-[160px]"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="tutti">Tutti</SelectItem><SelectItem value="da_approvare">Da Approvare</SelectItem><SelectItem value="approvata">Approvata</SelectItem><SelectItem value="rimborsata">Rimborsata</SelectItem></SelectContent></Select>
+          <div className="relative flex-1"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><Input placeholder="Cerca spesa..." value={searchTerm} onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }} className="pl-9" /></div>
+          <Select value={filterCategoria} onValueChange={(v) => { if (v) { setFilterCategoria(v); setCurrentPage(1); } }}><SelectTrigger className="w-[160px]"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="tutte">Tutte</SelectItem><SelectItem value="trasporti">Trasporti</SelectItem><SelectItem value="pasti">Pasti</SelectItem><SelectItem value="materiali">Materiali</SelectItem><SelectItem value="servizi">Servizi</SelectItem><SelectItem value="utenze">Utenze</SelectItem><SelectItem value="altro">Altro</SelectItem></SelectContent></Select>
+          <Select value={filterStato} onValueChange={(v) => { if (v) { setFilterStato(v); setCurrentPage(1); } }}><SelectTrigger className="w-[160px]"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="tutti">Tutti</SelectItem><SelectItem value="da_approvare">Da Approvare</SelectItem><SelectItem value="approvata">Approvata</SelectItem><SelectItem value="rimborsata">Rimborsata</SelectItem></SelectContent></Select>
         </div>
       </CardContent></Card>
+
+      {/* Bulk actions bar */}
+      {selectedIds.size > 0 && (
+        <Card>
+          <CardContent className="p-3 flex items-center justify-between">
+            <p className="text-sm font-medium">{selectedIds.size} element{selectedIds.size > 1 ? 'i' : 'o'} selezionat{selectedIds.size > 1 ? 'i' : 'o'}</p>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={() => alert('Demo: esportazione selezionati!')}>
+                <Download className="mr-2 h-4 w-4" />Esporta selezionati
+              </Button>
+              <Button variant="destructive" size="sm" onClick={() => alert('Demo: eliminazione selezionati!')}>
+                <Trash2 className="mr-2 h-4 w-4" />Elimina selezionati
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card><CardContent className="p-0">
         <Table>
           <TableHeader><TableRow>
-            <TableHead>Data</TableHead><TableHead>Descrizione</TableHead><TableHead className="hidden md:table-cell">Categoria</TableHead><TableHead className="hidden lg:table-cell">Dipendente</TableHead><TableHead>Stato</TableHead><TableHead className="text-right">Importo</TableHead><TableHead className="w-[50px]">Azioni</TableHead>
+            <TableHead className="w-[40px]">
+              <input
+                type="checkbox"
+                className="h-4 w-4 rounded border-gray-300"
+                checked={allSelected}
+                ref={(el) => { if (el) el.indeterminate = someSelected && !allSelected; }}
+                onChange={toggleSelectAll}
+              />
+            </TableHead>
+            <TableHead>Data</TableHead><TableHead>Descrizione</TableHead><TableHead className="hidden md:table-cell">Categoria</TableHead><TableHead className="hidden lg:table-cell">Dipendente</TableHead><TableHead>Stato</TableHead><TableHead className="text-right">Importo</TableHead><TableHead className="w-[80px]">Azioni</TableHead>
           </TableRow></TableHeader>
-          <TableBody>{filtered.map((s) => (
+          <TableBody>{paginatedItems.map((s) => (
             <TableRow key={s.id} className="hover:bg-muted/50">
+              <TableCell>
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 rounded border-gray-300"
+                  checked={selectedIds.has(s.id)}
+                  onChange={() => toggleSelect(s.id)}
+                />
+              </TableCell>
               <TableCell className="text-sm">{formatDate(s.data)}</TableCell>
               <TableCell><p className="text-sm font-medium">{s.descrizione}</p>{s.clienteNome && <p className="text-xs text-muted-foreground">{s.clienteNome}</p>}{s.progettoNome && <p className="text-xs text-muted-foreground">{s.progettoNome}</p>}</TableCell>
               <TableCell className="hidden md:table-cell"><Badge variant="secondary" className={`text-xs ${categoriaBadge[s.categoria]}`}>{s.categoria}</Badge></TableCell>
@@ -132,36 +214,102 @@ export default function SpesePage() {
               <TableCell><Badge variant="secondary" className={`text-xs ${statoBadge[s.stato]}`}>{s.stato.replace('_', ' ')}</Badge></TableCell>
               <TableCell className="text-right font-semibold text-sm">{formatCurrency(s.importo)}</TableCell>
               <TableCell>
-                <DropdownMenu>
-                  <DropdownMenuTrigger className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground h-8 w-8 p-0">
-                    <MoreHorizontal className="h-4 w-4" />
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => alert('Demo: azione eseguita!')}>
-                      <Pencil className="mr-2 h-4 w-4" />Modifica
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => alert('Demo: azione eseguita!')}>
-                      <Copy className="mr-2 h-4 w-4" />Duplica
-                    </DropdownMenuItem>
-                    {s.stato === 'da_approvare' && (
-                      <>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={() => alert('Demo: azione eseguita!')} className="text-green-600">
-                          <CheckCircle className="mr-2 h-4 w-4" />Approva
-                        </DropdownMenuItem>
-                      </>
-                    )}
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={() => alert('Demo: azione eseguita!')} className="text-red-600">
-                      <Trash2 className="mr-2 h-4 w-4" />Elimina
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                <div className="flex items-center gap-1">
+                  <button
+                    className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground h-8 w-8 p-0"
+                    onClick={() => setDetailItem(s)}
+                  >
+                    <Eye className="h-4 w-4" />
+                  </button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground h-8 w-8 p-0">
+                      <MoreHorizontal className="h-4 w-4" />
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => alert('Demo: azione eseguita!')}>
+                        <Pencil className="mr-2 h-4 w-4" />Modifica
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => alert('Demo: azione eseguita!')}>
+                        <Copy className="mr-2 h-4 w-4" />Duplica
+                      </DropdownMenuItem>
+                      {s.stato === 'da_approvare' && (
+                        <>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem onClick={() => alert('Demo: azione eseguita!')} className="text-green-600">
+                            <CheckCircle className="mr-2 h-4 w-4" />Approva
+                          </DropdownMenuItem>
+                        </>
+                      )}
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onClick={() => alert('Demo: azione eseguita!')} className="text-red-600">
+                        <Trash2 className="mr-2 h-4 w-4" />Elimina
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
               </TableCell>
             </TableRow>
           ))}</TableBody>
         </Table>
+        <Pagination
+          currentPage={safePage}
+          totalItems={filtered.length}
+          pageSize={pageSize}
+          onPageChange={handlePageChange}
+          onPageSizeChange={handlePageSizeChange}
+        />
       </CardContent></Card>
+
+      {/* Detail Dialog */}
+      <Dialog open={!!detailItem} onOpenChange={(open) => { if (!open) setDetailItem(null); }}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader><DialogTitle>Dettaglio Spesa</DialogTitle></DialogHeader>
+          {detailItem && (
+            <div className="space-y-4">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="sm:col-span-2">
+                  <p className="text-xs text-muted-foreground">Descrizione</p>
+                  <p className="text-sm font-medium">{detailItem.descrizione}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Categoria</p>
+                  <Badge variant="secondary" className={`text-xs mt-1 ${categoriaBadge[detailItem.categoria]}`}>{detailItem.categoria}</Badge>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Importo</p>
+                  <p className="text-sm font-bold">{formatCurrency(detailItem.importo)}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Data</p>
+                  <p className="text-sm font-medium">{formatDate(detailItem.data)}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Stato</p>
+                  <Badge variant="secondary" className={`text-xs mt-1 ${statoBadge[detailItem.stato]}`}>{detailItem.stato.replace('_', ' ')}</Badge>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Dipendente</p>
+                  <p className="text-sm font-medium">{detailItem.dipendenteNome || '—'}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Cliente</p>
+                  <p className="text-sm font-medium">{detailItem.clienteNome || '—'}</p>
+                </div>
+                <div className="sm:col-span-2">
+                  <p className="text-xs text-muted-foreground">Progetto</p>
+                  <p className="text-sm font-medium">{detailItem.progettoNome || '—'}</p>
+                </div>
+              </div>
+              {detailItem.note && (
+                <div>
+                  <p className="text-xs text-muted-foreground">Note</p>
+                  <p className="text-sm">{detailItem.note}</p>
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </PageContainer>
   );
 }

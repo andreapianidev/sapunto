@@ -12,22 +12,83 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Pagination } from '@/components/ui/pagination';
 import { leads } from '@/lib/mockdata';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Plus, Target, DollarSign, TrendingUp, Users, Save, MoreHorizontal, Pencil, Trash2, Copy, Download } from 'lucide-react';
+import { Plus, Target, DollarSign, TrendingUp, Users, Save, MoreHorizontal, Pencil, Trash2, Copy, Download, Search, Eye } from 'lucide-react';
 import type { FaseLead } from '@/lib/types';
 
 const faseBadge: Record<string, string> = { nuovo: 'bg-gray-100 text-gray-800', contattato: 'bg-blue-100 text-blue-800', qualificato: 'bg-purple-100 text-purple-800', proposta: 'bg-yellow-100 text-yellow-800', negoziazione: 'bg-orange-100 text-orange-800', vinto: 'bg-green-100 text-green-800', perso: 'bg-red-100 text-red-800' };
 const faseLabel: Record<string, string> = { nuovo: 'Nuovo', contattato: 'Contattato', qualificato: 'Qualificato', proposta: 'Proposta', negoziazione: 'Negoziazione', vinto: 'Vinto', perso: 'Perso' };
 const faseBorderColor: Record<string, string> = { nuovo: 'border-t-gray-400', contattato: 'border-t-blue-500', qualificato: 'border-t-purple-500', proposta: 'border-t-yellow-500', negoziazione: 'border-t-orange-500' };
+const fonteLabel: Record<string, string> = { sito_web: 'Sito Web', referral: 'Referral', fiera: 'Fiera', social: 'Social', cold_call: 'Cold Call', altro: 'Altro' };
 const pipelineFasi: FaseLead[] = ['nuovo', 'contattato', 'qualificato', 'proposta', 'negoziazione'];
 
 export default function LeadPage() {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterFase, setFilterFase] = useState<string>('tutti');
+  const [filterFonte, setFilterFonte] = useState<string>('tutti');
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [detailLead, setDetailLead] = useState<typeof leads[number] | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
   const attivi = leads.filter((l) => l.fase !== 'vinto' && l.fase !== 'perso');
   const valorePipeline = attivi.reduce((s, l) => s + l.valore, 0);
   const valorePesato = attivi.reduce((s, l) => s + l.valore * (l.probabilita / 100), 0);
   const tassoConversione = Math.round((leads.filter((l) => l.fase === 'vinto').length / leads.length) * 100);
+
+  // Filtered leads for Lista tab
+  const filteredLeads = useMemo(() => {
+    return leads.filter((l) => {
+      const matchSearch =
+        l.azienda.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        l.referente.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchFase = filterFase === 'tutti' || l.fase === filterFase;
+      const matchFonte = filterFonte === 'tutti' || l.fonte === filterFonte;
+      return matchSearch && matchFase && matchFonte;
+    });
+  }, [searchTerm, filterFase, filterFonte]);
+
+  // Paginated leads
+  const paginatedLeads = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredLeads.slice(start, start + pageSize);
+  }, [filteredLeads, currentPage, pageSize]);
+
+  // Reset page when filters change
+  const handleSearchChange = (value: string) => {
+    setSearchTerm(value);
+    setCurrentPage(1);
+  };
+  const handleFaseChange = (value: string) => {
+    setFilterFase(value);
+    setCurrentPage(1);
+  };
+  const handleFonteChange = (value: string) => {
+    setFilterFonte(value);
+    setCurrentPage(1);
+  };
+
+  // Bulk selection
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filteredLeads.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredLeads.map((l) => l.id)));
+    }
+  };
 
   return (
     <PageContainer title="Lead & Pipeline" description="Gestione opportunità commerciali" actions={
@@ -88,7 +149,9 @@ export default function LeadPage() {
                               <MoreHorizontal className="h-3.5 w-3.5" />
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => { setDetailLead(lead); setDetailOpen(true); }}><Eye className="mr-2 h-4 w-4" />Dettagli</DropdownMenuItem>
                               <DropdownMenuItem onClick={() => alert('Demo: azione eseguita!')}><Pencil className="mr-2 h-4 w-4" />Modifica</DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => alert('Demo: azione eseguita!')}><Copy className="mr-2 h-4 w-4" />Converti a Cliente</DropdownMenuItem>
                               <DropdownMenuSeparator />
                               <DropdownMenuItem onClick={() => alert('Demo: azione eseguita!')} className="text-red-600"><Trash2 className="mr-2 h-4 w-4" />Elimina</DropdownMenuItem>
                             </DropdownMenuContent>
@@ -109,13 +172,233 @@ export default function LeadPage() {
           </div>
         </TabsContent>
 
-        <TabsContent value="lista">
-          <Card><CardContent className="p-0"><Table><TableHeader><TableRow><TableHead>Azienda</TableHead><TableHead className="hidden md:table-cell">Referente</TableHead><TableHead className="hidden lg:table-cell">Fonte</TableHead><TableHead>Fase</TableHead><TableHead className="text-right">Valore</TableHead><TableHead className="text-center hidden md:table-cell">Prob.</TableHead><TableHead className="hidden lg:table-cell">Assegnato</TableHead><TableHead className="w-[50px]">Azioni</TableHead></TableRow></TableHeader>
-          <TableBody>{leads.map((l) => (
-            <TableRow key={l.id} className="hover:bg-muted/50"><TableCell className="font-medium text-sm">{l.azienda}</TableCell><TableCell className="hidden md:table-cell text-sm">{l.referente}</TableCell><TableCell className="hidden lg:table-cell text-sm capitalize">{l.fonte.replace('_', ' ')}</TableCell><TableCell><Badge variant="secondary" className={`text-xs ${faseBadge[l.fase]}`}>{faseLabel[l.fase]}</Badge></TableCell><TableCell className="text-right font-semibold text-sm">{formatCurrency(l.valore)}</TableCell><TableCell className="text-center hidden md:table-cell text-sm">{l.probabilita}%</TableCell><TableCell className="hidden lg:table-cell text-sm">{l.assegnatoNome}</TableCell><TableCell><DropdownMenu><DropdownMenuTrigger className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground h-8 w-8 p-0"><MoreHorizontal className="h-4 w-4" /></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem onClick={() => alert('Demo: azione eseguita!')}><Pencil className="mr-2 h-4 w-4" />Modifica</DropdownMenuItem><DropdownMenuItem onClick={() => alert('Demo: azione eseguita!')}><Trash2 className="mr-2 h-4 w-4" />Elimina</DropdownMenuItem><DropdownMenuSeparator /><DropdownMenuItem onClick={() => alert('Demo: azione eseguita!')}><Copy className="mr-2 h-4 w-4" />Converti a Cliente</DropdownMenuItem></DropdownMenuContent></DropdownMenu></TableCell></TableRow>
-          ))}</TableBody></Table></CardContent></Card>
+        <TabsContent value="lista" className="space-y-4">
+          {/* Search & Filter Bar */}
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex flex-col gap-3 md:flex-row md:items-center">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    placeholder="Cerca per azienda, referente..."
+                    value={searchTerm}
+                    onChange={(e) => handleSearchChange(e.target.value)}
+                    className="pl-9"
+                  />
+                </div>
+                <Select value={filterFase} onValueChange={(v) => v && handleFaseChange(v)}>
+                  <SelectTrigger className="w-[170px]">
+                    <SelectValue placeholder="Fase" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="tutti">Tutte le fasi</SelectItem>
+                    <SelectItem value="nuovo">Nuovo</SelectItem>
+                    <SelectItem value="contattato">Contattato</SelectItem>
+                    <SelectItem value="qualificato">Qualificato</SelectItem>
+                    <SelectItem value="proposta">Proposta</SelectItem>
+                    <SelectItem value="negoziazione">Negoziazione</SelectItem>
+                    <SelectItem value="vinto">Vinto</SelectItem>
+                    <SelectItem value="perso">Perso</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={filterFonte} onValueChange={(v) => v && handleFonteChange(v)}>
+                  <SelectTrigger className="w-[170px]">
+                    <SelectValue placeholder="Fonte" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="tutti">Tutte le fonti</SelectItem>
+                    <SelectItem value="sito_web">Sito Web</SelectItem>
+                    <SelectItem value="referral">Referral</SelectItem>
+                    <SelectItem value="fiera">Fiera</SelectItem>
+                    <SelectItem value="social">Social</SelectItem>
+                    <SelectItem value="cold_call">Cold Call</SelectItem>
+                    <SelectItem value="altro">Altro</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Bulk Actions Bar */}
+          {selectedIds.size > 0 && (
+            <Card>
+              <CardContent className="p-3">
+                <div className="flex items-center gap-3">
+                  <span className="text-sm font-medium">{selectedIds.size} selezionati</span>
+                  <Button variant="destructive" size="sm" onClick={() => alert('Demo: azione eseguita!')}>
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Elimina selezionati
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => alert('Demo: azione eseguita!')}>
+                    <Download className="mr-2 h-4 w-4" />
+                    Esporta selezionati
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Table */}
+          <Card>
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-10">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 rounded border-gray-300"
+                        checked={filteredLeads.length > 0 && selectedIds.size === filteredLeads.length}
+                        onChange={toggleSelectAll}
+                      />
+                    </TableHead>
+                    <TableHead>Azienda</TableHead>
+                    <TableHead className="hidden md:table-cell">Referente</TableHead>
+                    <TableHead className="hidden lg:table-cell">Fonte</TableHead>
+                    <TableHead>Fase</TableHead>
+                    <TableHead className="text-right">Valore</TableHead>
+                    <TableHead className="text-center hidden md:table-cell">Prob.</TableHead>
+                    <TableHead className="hidden lg:table-cell">Assegnato</TableHead>
+                    <TableHead className="w-[80px]">Azioni</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {paginatedLeads.map((l) => (
+                    <TableRow key={l.id} className="hover:bg-muted/50">
+                      <TableCell>
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 rounded border-gray-300"
+                          checked={selectedIds.has(l.id)}
+                          onChange={() => toggleSelect(l.id)}
+                        />
+                      </TableCell>
+                      <TableCell className="font-medium text-sm">{l.azienda}</TableCell>
+                      <TableCell className="hidden md:table-cell text-sm">{l.referente}</TableCell>
+                      <TableCell className="hidden lg:table-cell text-sm">{fonteLabel[l.fonte] || l.fonte}</TableCell>
+                      <TableCell><Badge variant="secondary" className={`text-xs ${faseBadge[l.fase]}`}>{faseLabel[l.fase]}</Badge></TableCell>
+                      <TableCell className="text-right font-semibold text-sm">{formatCurrency(l.valore)}</TableCell>
+                      <TableCell className="text-center hidden md:table-cell text-sm">{l.probabilita}%</TableCell>
+                      <TableCell className="hidden lg:table-cell text-sm">{l.assegnatoNome}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0"
+                            onClick={() => { setDetailLead(l); setDetailOpen(true); }}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground h-8 w-8 p-0">
+                              <MoreHorizontal className="h-4 w-4" />
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => alert('Demo: azione eseguita!')}><Pencil className="mr-2 h-4 w-4" />Modifica</DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => alert('Demo: azione eseguita!')}><Trash2 className="mr-2 h-4 w-4" />Elimina</DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem onClick={() => alert('Demo: azione eseguita!')}><Copy className="mr-2 h-4 w-4" />Converti a Cliente</DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              {filteredLeads.length === 0 && (
+                <div className="py-12 text-center text-muted-foreground">
+                  Nessun lead trovato con i filtri selezionati
+                </div>
+              )}
+              {/* Pagination */}
+              {filteredLeads.length > 0 && (
+                <Pagination
+                  currentPage={currentPage}
+                  totalItems={filteredLeads.length}
+                  pageSize={pageSize}
+                  onPageChange={setCurrentPage}
+                  onPageSizeChange={setPageSize}
+                />
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Detail View Dialog */}
+      <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Dettaglio Lead</DialogTitle>
+          </DialogHeader>
+          {detailLead && (
+            <div className="space-y-4">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <p className="text-xs text-muted-foreground">Azienda</p>
+                  <p className="text-sm font-medium">{detailLead.azienda}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Referente</p>
+                  <p className="text-sm font-medium">{detailLead.referente}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Email</p>
+                  <p className="text-sm font-medium">{detailLead.email}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Telefono</p>
+                  <p className="text-sm font-medium">{detailLead.telefono}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Valore</p>
+                  <p className="text-sm font-semibold text-green-700">{formatCurrency(detailLead.valore)}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Probabilità</p>
+                  <p className="text-sm font-medium">{detailLead.probabilita}%</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Fase</p>
+                  <Badge variant="secondary" className={`text-xs ${faseBadge[detailLead.fase]}`}>{faseLabel[detailLead.fase]}</Badge>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Fonte</p>
+                  <Badge variant="secondary" className="text-xs">{fonteLabel[detailLead.fonte] || detailLead.fonte}</Badge>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Assegnato a</p>
+                  <p className="text-sm font-medium">{detailLead.assegnatoNome}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Data Creazione</p>
+                  <p className="text-sm font-medium">{formatDate(detailLead.dataCreazione)}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Chiusura Prevista</p>
+                  <p className="text-sm font-medium">{formatDate(detailLead.dataChiusuraPrevista)}</p>
+                </div>
+              </div>
+              {detailLead.note && (
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">Note</p>
+                  <p className="text-sm rounded-md bg-muted/50 p-3">{detailLead.note}</p>
+                </div>
+              )}
+              <div className="flex justify-end gap-2 pt-2">
+                <Button variant="outline" size="sm" onClick={() => alert('Demo: azione eseguita!')}>
+                  <Pencil className="mr-2 h-4 w-4" />Modifica
+                </Button>
+                <Button size="sm" className="bg-[#1a2332] hover:bg-[#1a2332]/90" onClick={() => alert('Demo: azione eseguita!')}>
+                  <Copy className="mr-2 h-4 w-4" />Converti a Cliente
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </PageContainer>
   );
 }

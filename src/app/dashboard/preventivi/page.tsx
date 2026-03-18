@@ -16,6 +16,7 @@ import {
 import { preventivi, clienti } from '@/lib/mockdata';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { Search, Plus, ClipboardList, CheckCircle, Clock, XCircle, Save, Send, MoreHorizontal, Pencil, Trash2, Copy, Download } from 'lucide-react';
+import { Pagination } from '@/components/ui/pagination';
 
 const statoBadge: Record<string, string> = { bozza: 'bg-gray-100 text-gray-800', inviato: 'bg-blue-100 text-blue-800', accettato: 'bg-green-100 text-green-800', rifiutato: 'bg-red-100 text-red-800', scaduto: 'bg-yellow-100 text-yellow-800' };
 
@@ -23,6 +24,8 @@ export default function PreventiviPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStato, setFilterStato] = useState<string>('tutti');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   const filtered = useMemo(() => preventivi.filter((p) => {
     const matchSearch = p.clienteNome.toLowerCase().includes(searchTerm.toLowerCase()) || p.oggetto.toLowerCase().includes(searchTerm.toLowerCase());
@@ -115,7 +118,7 @@ export default function PreventiviPage() {
             onChange={toggleSelectAll}
           />
         </TableHead>
-        <TableHead>Numero</TableHead><TableHead>Cliente</TableHead><TableHead className="hidden md:table-cell">Oggetto</TableHead><TableHead>Data</TableHead><TableHead className="hidden lg:table-cell">Scadenza</TableHead><TableHead>Stato</TableHead><TableHead className="text-right">Totale</TableHead><TableHead className="text-right">Azioni</TableHead></TableRow></TableHeader><TableBody>{filtered.map((p) => (
+        <TableHead>Numero</TableHead><TableHead>Cliente</TableHead><TableHead className="hidden md:table-cell">Oggetto</TableHead><TableHead>Data</TableHead><TableHead className="hidden lg:table-cell">Scadenza</TableHead><TableHead>Stato</TableHead><TableHead className="text-right">Totale</TableHead><TableHead className="text-right">Azioni</TableHead></TableRow></TableHeader><TableBody>{filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize).map((p) => (
         <TableRow key={p.id} className="hover:bg-muted/50">
           <TableCell>
             <input
@@ -146,7 +149,7 @@ export default function PreventiviPage() {
             </DropdownMenu>
           </TableCell>
         </TableRow>
-      ))}</TableBody></Table></CardContent></Card>
+      ))}</TableBody></Table><Pagination currentPage={currentPage} totalItems={filtered.length} pageSize={pageSize} onPageChange={setCurrentPage} onPageSizeChange={setPageSize} /></CardContent></Card>
     </PageContainer>
   );
 }
