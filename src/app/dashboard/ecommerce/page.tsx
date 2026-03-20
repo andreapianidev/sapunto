@@ -6,12 +6,25 @@ import { Badge } from '@/components/ui/badge';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
-import { integrazioniEcommerce, logSync } from '@/lib/mockdata';
+import { fetchIntegrazioniEcommerce, fetchLogSync } from '@/lib/actions/data';
+import { useServerData } from '@/lib/hooks/use-server-data';
+import { useAuth } from '@/lib/auth-context';
 import { formatDateTime } from '@/lib/utils';
 import { ShoppingBag, RefreshCw, AlertCircle, CheckCircle, XCircle, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 export default function EcommercePage() {
+  const { user } = useAuth();
+  const tenantId = user?.tenantId || 't-1';
+  const [allData, loading] = useServerData(
+    () => Promise.all([fetchIntegrazioniEcommerce(tenantId), fetchLogSync()]),
+    [[], []]
+  );
+  const integrazioniEcommerce = allData[0];
+  const logSync = allData[1];
+
+  if (loading) return <div className="p-8 text-center">Caricamento...</div>;
+
   return (
     <PageContainer
       title="Integrazioni E-commerce"

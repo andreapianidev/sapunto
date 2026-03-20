@@ -13,7 +13,9 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
 import { Pagination } from '@/components/ui/pagination';
-import { tenants, piani } from '@/lib/mockdata';
+import { fetchTenants, fetchPiani } from '@/lib/actions/data';
+import { useServerData } from '@/lib/hooks/use-server-data';
+import { useAuth } from '@/lib/auth-context';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { CreditCard, CheckCircle, AlertTriangle, Clock, Search, Download } from 'lucide-react';
 
@@ -39,6 +41,15 @@ const statoBadge: Record<string, string> = {
 };
 
 export default function BillingPage() {
+  const { user } = useAuth();
+  const tenantId = user?.tenantId || 't-1';
+  const [allData, loading] = useServerData(
+    () => Promise.all([fetchTenants(), fetchPiani()]),
+    [[], []]
+  );
+  const tenants = allData[0];
+  const piani = allData[1];
+
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStato, setFilterStato] = useState<string>('tutti');
   const [currentPage, setCurrentPage] = useState(1);
@@ -58,6 +69,8 @@ export default function BillingPage() {
   }, [searchTerm, filterStato]);
 
   const totaleFalliti = pagamenti.filter((p) => p.stato === 'fallito').length;
+
+  if (loading) return <div className="p-8 text-center">Caricamento...</div>;
 
   return (
     <PageContainer title="Billing Globale" description="Panoramica pagamenti e rinnovi" actions={
@@ -122,8 +135,8 @@ export default function BillingPage() {
               <CardContent className="p-4">
                 <div className="flex items-center justify-between mb-3">
                   <Badge variant="secondary" className={`text-xs ${
-                    p.id === 'premium' ? 'bg-purple-100 text-purple-800' :
-                    p.id === 'professional' ? 'bg-blue-100 text-blue-800' :
+                    p.id === 'experience' ? 'bg-purple-100 text-purple-800' :
+                    p.id === 'explore' ? 'bg-blue-100 text-blue-800' :
                     'bg-gray-100 text-gray-800'
                   }`}>{p.nome}</Badge>
                   <span className="text-xs text-muted-foreground">{count} tenant</span>

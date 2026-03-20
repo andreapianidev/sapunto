@@ -21,11 +21,21 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Pagination } from '@/components/ui/pagination';
-import { prodotti, movimentiMagazzino } from '@/lib/mockdata';
+import { fetchProdotti, fetchMovimentiMagazzino } from '@/lib/actions/data';
+import { useServerData } from '@/lib/hooks/use-server-data';
+import { useAuth } from '@/lib/auth-context';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { Search, Package, AlertTriangle, ArrowUpCircle, ArrowDownCircle, Plus, MoreHorizontal, Pencil, Trash2, Download, Eye } from 'lucide-react';
 
 export default function MagazzinoPage() {
+  const { user } = useAuth();
+  const tenantId = user?.tenantId || 't-1';
+  const [allData, loading] = useServerData(
+    () => Promise.all([fetchProdotti(tenantId), fetchMovimentiMagazzino(tenantId)]),
+    [[], []]
+  );
+  const prodotti = allData[0];
+  const movimentiMagazzino = allData[1];
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategoria, setFilterCategoria] = useState<string>('tutte');
 
@@ -47,7 +57,7 @@ export default function MagazzinoPage() {
   // TODO: Replace with Supabase query
   const categorie = useMemo(() => {
     return Array.from(new Set(prodotti.map((p) => p.categoria))).sort();
-  }, []);
+  }, [prodotti]);
 
   const filtered = useMemo(() => {
     return prodotti.filter((p) => {
@@ -57,7 +67,7 @@ export default function MagazzinoPage() {
       const matchCat = filterCategoria === 'tutte' || p.categoria === filterCategoria;
       return matchSearch && matchCat;
     });
-  }, [searchTerm, filterCategoria]);
+  }, [searchTerm, filterCategoria, prodotti]);
 
   // Reset inventario page when filters change
   useMemo(() => {
@@ -113,7 +123,9 @@ export default function MagazzinoPage() {
       .filter((m) => m.prodottoId === productId)
       .sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime())
       .slice(0, 10);
-  }, []);
+  }, [movimentiMagazzino]);
+
+  if (loading) return <div className="p-8 text-center">Caricamento...</div>;
 
   return (
     <PageContainer

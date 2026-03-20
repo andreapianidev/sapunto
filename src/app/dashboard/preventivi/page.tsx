@@ -13,7 +13,9 @@ import { Label } from '@/components/ui/label';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { preventivi, clienti } from '@/lib/mockdata';
+import { fetchPreventivi, fetchClienti } from '@/lib/actions/data';
+import { useServerData } from '@/lib/hooks/use-server-data';
+import { useAuth } from '@/lib/auth-context';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { Search, Plus, ClipboardList, CheckCircle, Clock, XCircle, Save, Send, MoreHorizontal, Pencil, Trash2, Copy, Download } from 'lucide-react';
 import { Pagination } from '@/components/ui/pagination';
@@ -21,6 +23,15 @@ import { Pagination } from '@/components/ui/pagination';
 const statoBadge: Record<string, string> = { bozza: 'bg-gray-100 text-gray-800', inviato: 'bg-blue-100 text-blue-800', accettato: 'bg-green-100 text-green-800', rifiutato: 'bg-red-100 text-red-800', scaduto: 'bg-yellow-100 text-yellow-800' };
 
 export default function PreventiviPage() {
+  const { user } = useAuth();
+  const tenantId = user?.tenantId || 't-1';
+  const [allData, loading] = useServerData(
+    () => Promise.all([fetchPreventivi(tenantId), fetchClienti(tenantId)]),
+    [[], []]
+  );
+  const preventivi = allData[0];
+  const clienti = allData[1];
+
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStato, setFilterStato] = useState<string>('tutti');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -60,6 +71,8 @@ export default function PreventiviPage() {
     a.href = url; a.download = 'preventivi.csv'; a.click();
     URL.revokeObjectURL(url);
   };
+
+  if (loading) return <div className="p-8 text-center">Caricamento...</div>;
 
   return (
     <PageContainer title="Preventivi" description="Gestione offerte e preventivi" actions={

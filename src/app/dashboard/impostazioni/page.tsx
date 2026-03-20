@@ -12,16 +12,25 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
 import { useAuth } from '@/lib/auth-context';
-import { users, piani } from '@/lib/mockdata';
+import { fetchUsersByTenantId, fetchPiani } from '@/lib/actions/data';
+import { useServerData } from '@/lib/hooks/use-server-data';
 import { formatPIVA, formatCurrency } from '@/lib/utils';
 import { Building2, Users, FileText, CreditCard, Save } from 'lucide-react';
 
 export default function ImpostazioniPage() {
-  const { tenant } = useAuth();
+  const { tenant, user } = useAuth();
+  const tenantId = user?.tenantId || 't-1';
+  const [allData, loading] = useServerData(
+    () => Promise.all([fetchUsersByTenantId(tenantId), fetchPiani()]),
+    [[], []]
+  );
+  const users = allData[0];
+  const piani = allData[1];
 
   if (!tenant) return null;
+  if (loading) return <div className="p-8 text-center">Caricamento...</div>;
 
-  const tenantUsers = users.filter((u) => u.tenantId === tenant.id);
+  const tenantUsers = users;
   const piano = piani.find((p) => p.id === tenant.piano);
 
   return (

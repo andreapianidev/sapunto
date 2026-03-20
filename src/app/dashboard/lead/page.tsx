@@ -13,7 +13,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Pagination } from '@/components/ui/pagination';
-import { leads } from '@/lib/mockdata';
+import { fetchLeads } from '@/lib/actions/data';
+import { useServerData } from '@/lib/hooks/use-server-data';
+import { useAuth } from '@/lib/auth-context';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Plus, Target, DollarSign, TrendingUp, Users, Save, MoreHorizontal, Pencil, Trash2, Copy, Download, Search, Eye } from 'lucide-react';
@@ -26,6 +28,10 @@ const fonteLabel: Record<string, string> = { sito_web: 'Sito Web', referral: 'Re
 const pipelineFasi: FaseLead[] = ['nuovo', 'contattato', 'qualificato', 'proposta', 'negoziazione'];
 
 export default function LeadPage() {
+  const { user } = useAuth();
+  const tenantId = user?.tenantId || 't-1';
+  const [leads, loading] = useServerData(() => fetchLeads(tenantId), []);
+
   const [searchTerm, setSearchTerm] = useState('');
   const [filterFase, setFilterFase] = useState<string>('tutti');
   const [filterFonte, setFilterFonte] = useState<string>('tutti');
@@ -89,6 +95,8 @@ export default function LeadPage() {
       setSelectedIds(new Set(filteredLeads.map((l) => l.id)));
     }
   };
+
+  if (loading) return <div className="p-8 text-center">Caricamento...</div>;
 
   return (
     <PageContainer title="Lead & Pipeline" description="Gestione opportunità commerciali" actions={

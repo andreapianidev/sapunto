@@ -20,7 +20,9 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Pagination } from '@/components/ui/pagination';
-import { noteDiCredito } from '@/lib/mockdata';
+import { fetchNoteDiCredito } from '@/lib/actions/data';
+import { useServerData } from '@/lib/hooks/use-server-data';
+import { useAuth } from '@/lib/auth-context';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { Plus, FileX, Save, MoreHorizontal, Pencil, Trash2, Copy, Download, Search, Eye } from 'lucide-react';
 import type { NotaDiCredito } from '@/lib/types';
@@ -38,6 +40,10 @@ const statoLabel: Record<string, string> = {
 };
 
 export default function NoteCreditoPage() {
+  const { user } = useAuth();
+  const tenantId = user?.tenantId || 't-1';
+  const [noteDiCredito, loading] = useServerData(() => fetchNoteDiCredito(tenantId), []);
+
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStato, setFilterStato] = useState<string>('tutti');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -103,6 +109,8 @@ export default function NoteCreditoPage() {
   };
 
   // --- Stats ---
+  if (loading) return <div className="p-8 text-center">Caricamento...</div>;
+
   const totale = noteDiCredito.reduce((s, n) => s + n.totale, 0);
 
   return (

@@ -18,7 +18,9 @@ import {
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Pagination } from '@/components/ui/pagination';
-import { tickets } from '@/lib/mockdata';
+import { fetchTickets } from '@/lib/actions/data';
+import { useServerData } from '@/lib/hooks/use-server-data';
+import { useAuth } from '@/lib/auth-context';
 import { formatDate, formatDateTime } from '@/lib/utils';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Search, Plus, Eye, LifeBuoy, AlertCircle, CheckCircle, Clock, MessageSquare, MoreHorizontal, Pencil, Trash2, Copy, Download, X } from 'lucide-react';
@@ -40,6 +42,10 @@ const prioritaBadge: Record<string, string> = {
 };
 
 export default function TicketPage() {
+  const { user } = useAuth();
+  const tenantId = user?.tenantId || 't-1';
+  const [tickets, loading] = useServerData(() => fetchTickets(tenantId), []);
+
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStato, setFilterStato] = useState<string>('tutti');
   const [filterPriorita, setFilterPriorita] = useState<string>('tutte');
@@ -106,6 +112,8 @@ export default function TicketPage() {
     setPageSize(size);
     setCurrentPage(1);
   }, []);
+
+  if (loading) return <div className="p-8 text-center">Caricamento...</div>;
 
   const stats = {
     aperti: tickets.filter((t) => t.stato === 'aperto' || t.stato === 'in_lavorazione').length,

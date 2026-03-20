@@ -17,7 +17,9 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import { fatture, clienti } from '@/lib/mockdata';
+import { fetchFatture, fetchClienti } from '@/lib/actions/data';
+import { useServerData } from '@/lib/hooks/use-server-data';
+import { useAuth } from '@/lib/auth-context';
 import {
   formatCurrency, formatDate, getStatoSDIColor, getStatoSDILabel,
   getStatoPagamentoColor,
@@ -30,6 +32,14 @@ import { Pagination } from '@/components/ui/pagination';
 import type { Fattura } from '@/lib/types';
 
 export default function FatturePage() {
+  const { user } = useAuth();
+  const tenantId = user?.tenantId || 't-1';
+  const [allData, loading] = useServerData(
+    () => Promise.all([fetchFatture(tenantId), fetchClienti(tenantId)]),
+    [[], []]
+  );
+  const fatture = allData[0];
+  const clienti = allData[1];
   const [searchTerm, setSearchTerm] = useState('');
   const [filterTipo, setFilterTipo] = useState<string>('tutti');
   const [filterSDI, setFilterSDI] = useState<string>('tutti');
@@ -77,11 +87,13 @@ export default function FatturePage() {
       const matchSDI = filterSDI === 'tutti' || f.statoSDI === filterSDI;
       return matchSearch && matchTipo && matchSDI;
     });
-  }, [searchTerm, filterTipo, filterSDI]);
+  }, [searchTerm, filterTipo, filterSDI, fatture]);
 
   const totaleEmesse = fattureEmesse.reduce((s, f) => s + f.totale, 0);
   const totalePagate = fattureEmesse.filter((f) => f.stato === 'pagata').reduce((s, f) => s + f.totale, 0);
   const totaleScadute = fattureEmesse.filter((f) => f.stato === 'scaduta').reduce((s, f) => s + f.totale, 0);
+
+  if (loading) return <div className="p-8 text-center">Caricamento...</div>;
 
   return (
     <PageContainer
@@ -361,7 +373,7 @@ export default function FatturePage() {
                     <div className="flex items-center justify-end gap-1">
                     <Dialog>
                       <DialogTrigger
-                        onClick={() => setSelectedFattura(fattura)}
+                        onClick={() => setSelectedFattura(fattura as Fattura)}
                         className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground h-8 w-8"
                       >
                         <Eye className="h-4 w-4" />

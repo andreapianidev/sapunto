@@ -20,12 +20,23 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Pagination } from '@/components/ui/pagination';
-import { tenants, piani } from '@/lib/mockdata';
+import { fetchTenants, fetchPiani } from '@/lib/actions/data';
+import { useServerData } from '@/lib/hooks/use-server-data';
+import { useAuth } from '@/lib/auth-context';
 import { formatDate, formatCurrency, formatPIVA } from '@/lib/utils';
 import { Plus, MoreHorizontal, Pause, Edit, Trash2, Search, Eye, Save, Building2, Users, DollarSign } from 'lucide-react';
 import type { Tenant } from '@/lib/types';
 
 export default function TenantPage() {
+  const { user } = useAuth();
+  const tenantId = user?.tenantId || 't-1';
+  const [allData, loading] = useServerData(
+    () => Promise.all([fetchTenants(), fetchPiani()]),
+    [[], []]
+  );
+  const tenants = allData[0];
+  const piani = allData[1];
+
   const [searchTerm, setSearchTerm] = useState('');
   const [filterPiano, setFilterPiano] = useState<string>('tutti');
   const [filterStato, setFilterStato] = useState<string>('tutti');
@@ -46,6 +57,8 @@ export default function TenantPage() {
     const piano = piani.find((p) => p.id === t.piano);
     return s + (piano ? piano.prezzoMensile : 0);
   }, 0);
+
+  if (loading) return <div className="p-8 text-center">Caricamento...</div>;
 
   return (
     <PageContainer
@@ -72,12 +85,12 @@ export default function TenantPage() {
                   <div><Label>Città</Label><Input placeholder="Milano" className="mt-1" /></div>
                   <div>
                     <Label>Piano</Label>
-                    <Select defaultValue="professional">
+                    <Select defaultValue="explore">
                       <SelectTrigger className="mt-1 w-full"><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="base">Base</SelectItem>
-                        <SelectItem value="professional">Professional</SelectItem>
-                        <SelectItem value="premium">Premium</SelectItem>
+                        <SelectItem value="express">Express</SelectItem>
+                        <SelectItem value="explore">Explore</SelectItem>
+                        <SelectItem value="experience">Experience</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -111,7 +124,7 @@ export default function TenantPage() {
       {/* Filters */}
       <Card><CardContent className="p-4"><div className="flex flex-col gap-3 md:flex-row md:items-center">
         <div className="relative flex-1"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><Input placeholder="Cerca tenant..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-9" /></div>
-        <Select value={filterPiano} onValueChange={(v) => v && setFilterPiano(v)}><SelectTrigger className="w-[160px]"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="tutti">Tutti i Piani</SelectItem><SelectItem value="base">Base</SelectItem><SelectItem value="professional">Professional</SelectItem><SelectItem value="premium">Premium</SelectItem></SelectContent></Select>
+        <Select value={filterPiano} onValueChange={(v) => v && setFilterPiano(v)}><SelectTrigger className="w-[160px]"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="tutti">Tutti i Piani</SelectItem><SelectItem value="express">Express</SelectItem><SelectItem value="explore">Explore</SelectItem><SelectItem value="experience">Experience</SelectItem></SelectContent></Select>
         <Select value={filterStato} onValueChange={(v) => v && setFilterStato(v)}><SelectTrigger className="w-[160px]"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="tutti">Tutti gli Stati</SelectItem><SelectItem value="attivo">Attivo</SelectItem><SelectItem value="sospeso">Sospeso</SelectItem><SelectItem value="trial">Trial</SelectItem></SelectContent></Select>
       </div></CardContent></Card>
 
@@ -135,7 +148,7 @@ export default function TenantPage() {
                 <div className="grid grid-cols-2 gap-3 text-sm">
                   <div><p className="text-muted-foreground">Partita IVA</p><p className="font-medium font-mono">{formatPIVA(detailTenant.partitaIva)}</p></div>
                   <div><p className="text-muted-foreground">Stato</p><Badge variant="secondary" className={`text-xs ${detailTenant.stato === 'attivo' ? 'bg-green-100 text-green-800' : detailTenant.stato === 'sospeso' ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800'}`}>{detailTenant.stato}</Badge></div>
-                  <div><p className="text-muted-foreground">Piano</p><Badge variant="secondary" className={`text-xs ${detailTenant.piano === 'premium' ? 'bg-purple-100 text-purple-800' : detailTenant.piano === 'professional' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'}`}>{detailTenant.piano}</Badge></div>
+                  <div><p className="text-muted-foreground">Piano</p><Badge variant="secondary" className={`text-xs ${detailTenant.piano === 'experience' ? 'bg-purple-100 text-purple-800' : detailTenant.piano === 'explore' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'}`}>{detailTenant.piano.charAt(0).toUpperCase() + detailTenant.piano.slice(1)}</Badge></div>
                   <div><p className="text-muted-foreground">MRR</p><p className="font-bold">{piano ? formatCurrency(piano.prezzoMensile) : '—'}/mese</p></div>
                   <div><p className="text-muted-foreground">Utenti</p><p className="font-medium">{detailTenant.utentiAttivi} / {detailTenant.maxUtenti}</p></div>
                   <div><p className="text-muted-foreground">Data Creazione</p><p className="font-medium">{formatDate(detailTenant.dataCreazione)}</p></div>
@@ -192,8 +205,8 @@ export default function TenantPage() {
                     <TableCell className="hidden md:table-cell text-sm">{formatPIVA(t.partitaIva)}</TableCell>
                     <TableCell>
                       <Badge variant="secondary" className={`text-xs ${
-                        t.piano === 'premium' ? 'bg-purple-100 text-purple-800' :
-                        t.piano === 'professional' ? 'bg-blue-100 text-blue-800' :
+                        t.piano === 'experience' ? 'bg-purple-100 text-purple-800' :
+                        t.piano === 'explore' ? 'bg-blue-100 text-blue-800' :
                         'bg-gray-100 text-gray-800'
                       }`}>
                         {t.piano.charAt(0).toUpperCase() + t.piano.slice(1)}

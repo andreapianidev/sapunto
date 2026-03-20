@@ -21,12 +21,23 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Pagination } from '@/components/ui/pagination';
-import { dipendenti, cedolini } from '@/lib/mockdata';
+import { fetchDipendenti, fetchCedolini } from '@/lib/actions/data';
+import { useServerData } from '@/lib/hooks/use-server-data';
+import { useAuth } from '@/lib/auth-context';
 import { formatCurrency, formatDate, getMeseLabel } from '@/lib/utils';
 import { Users, Wallet, Eye, FileDown, Plus, MoreHorizontal, Pencil, Trash2, Download, Search } from 'lucide-react';
 import type { Dipendente } from '@/lib/types';
 
 export default function PayrollPage() {
+  const { user } = useAuth();
+  const tenantId = user?.tenantId || 't-1';
+  const [allData, loading] = useServerData(
+    () => Promise.all([fetchDipendenti(tenantId), fetchCedolini(tenantId)]),
+    [[], []]
+  );
+  const dipendenti = allData[0];
+  const cedolini = allData[1];
+
   const [selectedDipendente, setSelectedDipendente] = useState<Dipendente | null>(null);
 
   // --- Dipendenti tab state ---
@@ -161,6 +172,8 @@ export default function PayrollPage() {
     setCedAnnoFilter(value);
     setCedPage(1);
   };
+
+  if (loading) return <div className="p-8 text-center">Caricamento...</div>;
 
   return (
     <PageContainer

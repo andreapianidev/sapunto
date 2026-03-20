@@ -4,7 +4,9 @@ import { PageContainer } from '@/components/layout/page-container';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { formatCurrency, formatDate, getStatoOrdineColor, getStatoOrdineLabel } from '@/lib/utils';
-import { venditeMensili, topClienti, ordiniPerCanale, ordini, appuntamenti, fatture, tickets, leads, contratti, prodotti } from '@/lib/mockdata';
+import { fetchVenditeMensili, fetchTopClienti, fetchOrdiniPerCanale, fetchOrdini, fetchAppuntamenti, fetchFatture, fetchTickets, fetchLeads, fetchContratti, fetchProdotti } from '@/lib/actions/data';
+import { useServerData } from '@/lib/hooks/use-server-data';
+import { useAuth } from '@/lib/auth-context';
 import {
   DollarSign,
   ShoppingCart,
@@ -30,38 +32,6 @@ import {
 } from 'recharts';
 
 const COLORS = ['#1a2332', '#3b82f6', '#8b5cf6', '#f59e0b', '#ef4444'];
-
-// TODO: Replace with Supabase query
-const kpis = [
-  {
-    title: 'Fatturato Mese',
-    value: formatCurrency(32100),
-    change: '+12.5%',
-    trend: 'up',
-    icon: DollarSign,
-  },
-  {
-    title: 'Ordini Mese',
-    value: '14',
-    change: '+16.7%',
-    trend: 'up',
-    icon: ShoppingCart,
-  },
-  {
-    title: 'Nuovi Clienti',
-    value: '3',
-    change: '+50%',
-    trend: 'up',
-    icon: Users,
-  },
-  {
-    title: 'Appuntamenti Oggi',
-    value: String(appuntamenti.filter((a) => a.data === '2026-03-18').length),
-    change: '',
-    trend: 'neutral',
-    icon: Calendar,
-  },
-];
 
 // Mock activity feed data
 const attivitaRecenti: {
@@ -138,51 +108,6 @@ const activityIconMap: Record<string, typeof ShoppingCart> = {
   cliente: Users,
 };
 
-// Notification items
-const notifiche: {
-  id: string;
-  tipo: 'warning' | 'info' | 'danger';
-  titolo: string;
-  descrizione: string;
-}[] = [
-  {
-    id: 'not-1',
-    tipo: 'warning',
-    titolo: 'Contratto in scadenza',
-    descrizione: 'CTR-2025-004 Centro Medico Salus scade il 31/03/2026 — proporre rinnovo',
-  },
-  {
-    id: 'not-2',
-    tipo: 'danger',
-    titolo: 'Scorte in esaurimento',
-    descrizione: `${prodotti.filter((p) => p.giacenza <= p.scorteMinime).length} prodotti sotto la soglia minima di scorta`,
-  },
-  {
-    id: 'not-3',
-    tipo: 'warning',
-    titolo: 'Spese da approvare',
-    descrizione: '2 note spese in attesa di approvazione',
-  },
-  {
-    id: 'not-4',
-    tipo: 'info',
-    titolo: 'Ticket critici aperti',
-    descrizione: `${tickets.filter((t) => t.priorita === 'critica' && t.stato !== 'chiuso' && t.stato !== 'risolto').length} ticket con priorità critica in lavorazione`,
-  },
-  {
-    id: 'not-5',
-    tipo: 'warning',
-    titolo: 'Contratto bozza da finalizzare',
-    descrizione: 'CTR-2026-006 Assicurazioni Futuro S.a.s. — bozza in attesa di firma',
-  },
-  {
-    id: 'not-6',
-    tipo: 'info',
-    titolo: 'Lead in negoziazione',
-    descrizione: 'Logistica Nord S.p.A. — chiusura prevista entro il 25/03',
-  },
-];
-
 const notificaStyles: Record<string, { bg: string; text: string; border: string }> = {
   warning: { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-l-amber-500' },
   danger: { bg: 'bg-red-50', text: 'text-red-700', border: 'border-l-red-500' },
@@ -190,9 +115,116 @@ const notificaStyles: Record<string, { bg: string; text: string; border: string 
 };
 
 export default function DashboardPage() {
+  const { user } = useAuth();
+  const tenantId = user?.tenantId || 't-1';
+  const [allData, loading] = useServerData(
+    () => Promise.all([
+      fetchVenditeMensili(tenantId),
+      fetchTopClienti(tenantId),
+      fetchOrdiniPerCanale(tenantId),
+      fetchOrdini(tenantId),
+      fetchAppuntamenti(tenantId),
+      fetchFatture(tenantId),
+      fetchTickets(tenantId),
+      fetchLeads(tenantId),
+      fetchContratti(tenantId),
+      fetchProdotti(tenantId),
+    ]),
+    [[], [], [], [], [], [], [], [], [], []]
+  );
+  const venditeMensili = allData[0];
+  const topClienti = allData[1];
+  const ordiniPerCanale = allData[2];
+  const ordini = allData[3];
+  const appuntamenti = allData[4];
+  const fatture = allData[5];
+  const tickets = allData[6];
+  const leads = allData[7];
+  const contratti = allData[8];
+  const prodotti = allData[9];
+
+  if (loading) return <div className="p-8 text-center">Caricamento...</div>;
+
+  // TODO: Replace with Supabase query
+  const kpis = [
+    {
+      title: 'Fatturato Mese',
+      value: formatCurrency(32100),
+      change: '+12.5%',
+      trend: 'up',
+      icon: DollarSign,
+    },
+    {
+      title: 'Ordini Mese',
+      value: '14',
+      change: '+16.7%',
+      trend: 'up',
+      icon: ShoppingCart,
+    },
+    {
+      title: 'Nuovi Clienti',
+      value: '3',
+      change: '+50%',
+      trend: 'up',
+      icon: Users,
+    },
+    {
+      title: 'Appuntamenti Oggi',
+      value: String(appuntamenti.filter((a: any) => a.data === '2026-03-18').length),
+      change: '',
+      trend: 'neutral',
+      icon: Calendar,
+    },
+  ];
+
+  // Notification items
+  const notifiche: {
+    id: string;
+    tipo: 'warning' | 'info' | 'danger';
+    titolo: string;
+    descrizione: string;
+  }[] = [
+    {
+      id: 'not-1',
+      tipo: 'warning',
+      titolo: 'Contratto in scadenza',
+      descrizione: 'CTR-2025-004 Centro Medico Salus scade il 31/03/2026 — proporre rinnovo',
+    },
+    {
+      id: 'not-2',
+      tipo: 'danger',
+      titolo: 'Scorte in esaurimento',
+      descrizione: `${prodotti.filter((p: any) => p.giacenza <= p.scorteMinime).length} prodotti sotto la soglia minima di scorta`,
+    },
+    {
+      id: 'not-3',
+      tipo: 'warning',
+      titolo: 'Spese da approvare',
+      descrizione: '2 note spese in attesa di approvazione',
+    },
+    {
+      id: 'not-4',
+      tipo: 'info',
+      titolo: 'Ticket critici aperti',
+      descrizione: `${tickets.filter((t: any) => t.priorita === 'critica' && t.stato !== 'chiuso' && t.stato !== 'risolto').length} ticket con priorità critica in lavorazione`,
+    },
+    {
+      id: 'not-5',
+      tipo: 'warning',
+      titolo: 'Contratto bozza da finalizzare',
+      descrizione: 'CTR-2026-006 Assicurazioni Futuro S.a.s. — bozza in attesa di firma',
+    },
+    {
+      id: 'not-6',
+      tipo: 'info',
+      titolo: 'Lead in negoziazione',
+      descrizione: 'Logistica Nord S.p.A. — chiusura prevista entro il 25/03',
+    },
+  ];
+
   const ordiniRecenti = ordini.slice(-5).reverse();
-  const fattureInScadenza = fatture.filter((f) => f.stato === 'non_pagata').slice(0, 5);
-  const appuntamentiOggi = appuntamenti.filter((a) => a.data === '2026-03-18');
+  const fattureInScadenza = fatture.filter((f: any) => f.stato === 'non_pagata').slice(0, 5);
+  const appuntamentiOggi = appuntamenti.filter((a: any) => a.data === '2026-03-18');
 
   return (
     <PageContainer title="Dashboard" description="Panoramica delle attivit&agrave;">
@@ -275,7 +307,7 @@ export default function DashboardPage() {
                   dataKey="valore"
                   nameKey="canale"
                 >
-                  {ordiniPerCanale.map((_, index) => (
+                  {ordiniPerCanale.map((_: any, index: number) => (
                     <Cell key={index} fill={COLORS[index % COLORS.length]} />
                   ))}
                 </Pie>
@@ -283,7 +315,7 @@ export default function DashboardPage() {
               </PieChart>
             </ResponsiveContainer>
             <div className="flex flex-wrap justify-center gap-3 mt-2">
-              {ordiniPerCanale.map((item, i) => (
+              {ordiniPerCanale.map((item: any, i: number) => (
                 <div key={item.canale} className="flex items-center gap-1.5 text-xs">
                   <div className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: COLORS[i] }} />
                   <span className="text-muted-foreground">{item.canale}</span>
@@ -338,7 +370,7 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent className="space-y-3">
             {fattureInScadenza.length > 0 ? (
-              fattureInScadenza.map((fattura) => (
+              fattureInScadenza.map((fattura: any) => (
                 <div key={fattura.id} className="flex items-center justify-between border-b border-border pb-3 last:border-0 last:pb-0">
                   <div>
                     <p className="text-sm font-medium">{fattura.clienteNome}</p>
@@ -398,7 +430,7 @@ export default function DashboardPage() {
             <CardTitle className="text-base font-semibold">Ordini Recenti</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            {ordiniRecenti.map((ordine) => (
+            {ordiniRecenti.map((ordine: any) => (
               <div key={ordine.id} className="flex items-center justify-between border-b border-border pb-3 last:border-0 last:pb-0">
                 <div>
                   <p className="text-sm font-medium">{ordine.clienteNome}</p>
@@ -421,7 +453,7 @@ export default function DashboardPage() {
             <CardTitle className="text-base font-semibold">Top Clienti</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            {topClienti.map((cliente, i) => (
+            {topClienti.map((cliente: any, i: number) => (
               <div key={cliente.nome} className="flex items-center justify-between border-b border-border pb-3 last:border-0 last:pb-0">
                 <div className="flex items-center gap-3">
                   <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#1a2332] text-white text-xs font-bold">
@@ -442,7 +474,7 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent className="space-y-3">
             {appuntamentiOggi.length > 0 ? (
-              appuntamentiOggi.map((app) => (
+              appuntamentiOggi.map((app: any) => (
                 <div key={app.id} className="flex items-start gap-3 border-b border-border pb-3 last:border-0 last:pb-0">
                   <div className="flex h-10 w-10 flex-col items-center justify-center rounded-lg bg-blue-50 text-blue-700">
                     <span className="text-xs font-bold">{app.oraInizio}</span>

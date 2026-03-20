@@ -21,11 +21,22 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Label } from '@/components/ui/label';
 import { Pagination } from '@/components/ui/pagination';
-import { clienti, ordini, fatture } from '@/lib/mockdata';
+import { fetchClienti, fetchOrdini, fetchFatture } from '@/lib/actions/data';
+import { useServerData } from '@/lib/hooks/use-server-data';
+import { useAuth } from '@/lib/auth-context';
 import { formatDate, formatPIVA } from '@/lib/utils';
 import { Search, Plus, Download, Upload, Eye, Building2, User as UserIcon, Save, MoreHorizontal, Pencil, Trash2, Copy, FileUp } from 'lucide-react';
 
 export default function ClientiPage() {
+  const { user } = useAuth();
+  const tenantId = user?.tenantId || 't-1';
+  const [allData, loading] = useServerData(
+    () => Promise.all([fetchClienti(tenantId), fetchOrdini(tenantId), fetchFatture(tenantId)]),
+    [[], [], []]
+  );
+  const clienti = allData[0];
+  const ordini = allData[1];
+  const fatture = allData[2];
   const [searchTerm, setSearchTerm] = useState('');
   const [filterTipo, setFilterTipo] = useState<string>('tutti');
   const [filterTag, setFilterTag] = useState<string>('tutti');
@@ -56,7 +67,7 @@ export default function ClientiPage() {
     const tags = new Set<string>();
     clienti.forEach((c) => c.tags.forEach((t) => tags.add(t)));
     return Array.from(tags).sort();
-  }, []);
+  }, [clienti]);
 
   const filteredClienti = useMemo(() => {
     return clienti.filter((c) => {
@@ -68,7 +79,9 @@ export default function ClientiPage() {
       const matchTag = filterTag === 'tutti' || c.tags.includes(filterTag);
       return matchSearch && matchTipo && matchTag;
     });
-  }, [searchTerm, filterTipo, filterTag]);
+  }, [searchTerm, filterTipo, filterTag, clienti]);
+
+  if (loading) return <div className="p-8 text-center">Caricamento...</div>;
 
   return (
     <PageContainer

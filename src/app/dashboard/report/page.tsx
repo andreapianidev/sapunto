@@ -4,7 +4,9 @@ import { PageContainer } from '@/components/layout/page-container';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { venditeMensili, topClienti, ordiniPerCanale, ordini, fatture, clienti, prodotti, spese, leads } from '@/lib/mockdata';
+import { fetchVenditeMensili, fetchTopClienti, fetchOrdiniPerCanale, fetchOrdini, fetchFatture, fetchClienti, fetchProdotti, fetchSpese, fetchLeads } from '@/lib/actions/data';
+import { useServerData } from '@/lib/hooks/use-server-data';
+import { useAuth } from '@/lib/auth-context';
 import { formatCurrency } from '@/lib/utils';
 import { BarChart3, TrendingUp, PieChart as PieChartIcon, DollarSign } from 'lucide-react';
 import {
@@ -15,27 +17,55 @@ import {
 const COLORS = ['#1a2332', '#3b82f6', '#8b5cf6', '#f59e0b', '#ef4444', '#10b981', '#ec4899'];
 
 export default function ReportPage() {
-  const fatturatoTotale = ordini.filter((o) => o.stato === 'completato').reduce((s, o) => s + o.totale, 0);
-  const margineStimato = fatturatoTotale * 0.35;
-  const speseTotali = spese.reduce((s, sp) => s + sp.importo, 0);
-  const valPipeline = leads.filter((l) => l.fase !== 'vinto' && l.fase !== 'perso').reduce((s, l) => s + l.valore * (l.probabilita / 100), 0);
+  const { user } = useAuth();
+  const tenantId = user?.tenantId || 't-1';
+  const [allData, loading] = useServerData(
+    () => Promise.all([
+      fetchVenditeMensili(tenantId),
+      fetchTopClienti(tenantId),
+      fetchOrdiniPerCanale(tenantId),
+      fetchOrdini(tenantId),
+      fetchFatture(tenantId),
+      fetchClienti(tenantId),
+      fetchProdotti(tenantId),
+      fetchSpese(tenantId),
+      fetchLeads(tenantId),
+    ]),
+    [[], [], [], [], [], [], [], [], []]
+  );
+  const venditeMensili = allData[0];
+  const topClienti = allData[1];
+  const ordiniPerCanale = allData[2];
+  const ordini = allData[3];
+  const fatture = allData[4];
+  const clienti = allData[5];
+  const prodotti = allData[6];
+  const spese = allData[7];
+  const leads = allData[8];
 
-  const categorieVendita = prodotti.reduce((acc, p) => {
+  if (loading) return <div className="p-8 text-center">Caricamento...</div>;
+
+  const fatturatoTotale = ordini.filter((o: any) => o.stato === 'completato').reduce((s: number, o: any) => s + o.totale, 0);
+  const margineStimato = fatturatoTotale * 0.35;
+  const speseTotali = spese.reduce((s: number, sp: any) => s + sp.importo, 0);
+  const valPipeline = leads.filter((l: any) => l.fase !== 'vinto' && l.fase !== 'perso').reduce((s: number, l: any) => s + l.valore * (l.probabilita / 100), 0);
+
+  const categorieVendita = prodotti.reduce((acc: Record<string, number>, p: any) => {
     if (!acc[p.categoria]) acc[p.categoria] = 0;
     acc[p.categoria] += p.prezzo * (p.giacenza > 50 ? 10 : 3);
     return acc;
   }, {} as Record<string, number>);
-  const categoriePie = Object.entries(categorieVendita).slice(0, 7).map(([name, value]) => ({ name, value: Math.round(value) }));
+  const categoriePie = Object.entries(categorieVendita).slice(0, 7).map(([name, value]) => ({ name, value: Math.round(value as number) }));
 
   const statoFatture = [
-    { nome: 'Pagate', valore: fatture.filter((f) => f.stato === 'pagata').length },
-    { nome: 'Non Pagate', valore: fatture.filter((f) => f.stato === 'non_pagata').length },
-    { nome: 'Scadute', valore: fatture.filter((f) => f.stato === 'scaduta').length },
+    { nome: 'Pagate', valore: fatture.filter((f: any) => f.stato === 'pagata').length },
+    { nome: 'Non Pagate', valore: fatture.filter((f: any) => f.stato === 'non_pagata').length },
+    { nome: 'Scadute', valore: fatture.filter((f: any) => f.stato === 'scaduta').length },
   ];
 
   const clientiPerTipo = [
-    { tipo: 'Azienda', valore: clienti.filter((c) => c.tipo === 'azienda').length },
-    { tipo: 'Privato', valore: clienti.filter((c) => c.tipo === 'privato').length },
+    { tipo: 'Azienda', valore: clienti.filter((c: any) => c.tipo === 'azienda').length },
+    { tipo: 'Privato', valore: clienti.filter((c: any) => c.tipo === 'privato').length },
   ];
 
   return (
@@ -78,13 +108,13 @@ export default function ReportPage() {
                 <ResponsiveContainer width="100%" height={300}>
                   <PieChart>
                     <Pie data={ordiniPerCanale} cx="50%" cy="50%" innerRadius={60} outerRadius={110} paddingAngle={3} dataKey="valore" nameKey="canale">
-                      {ordiniPerCanale.map((_, i) => (<Cell key={i} fill={COLORS[i]} />))}
+                      {ordiniPerCanale.map((_: any, i: number) => (<Cell key={i} fill={COLORS[i]} />))}
                     </Pie>
                     <Tooltip formatter={(value) => [`${value}%`, 'Quota']} />
                   </PieChart>
                 </ResponsiveContainer>
                 <div className="flex flex-wrap justify-center gap-3 mt-2">
-                  {ordiniPerCanale.map((item, i) => (
+                  {ordiniPerCanale.map((item: any, i: number) => (
                     <div key={item.canale} className="flex items-center gap-1.5 text-xs">
                       <div className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: COLORS[i] }} />
                       <span className="text-muted-foreground">{item.canale} ({item.valore}%)</span>
@@ -189,7 +219,7 @@ export default function ReportPage() {
               <CardHeader><CardTitle className="text-base">Spese per Categoria</CardTitle></CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {Object.entries(spese.reduce((acc, s) => { acc[s.categoria] = (acc[s.categoria] || 0) + s.importo; return acc; }, {} as Record<string, number>)).sort((a, b) => b[1] - a[1]).map(([cat, val]) => (
+                  {Object.entries(spese.reduce((acc: Record<string, number>, s: any) => { acc[s.categoria] = (acc[s.categoria] || 0) + s.importo; return acc; }, {} as Record<string, number>)).sort((a, b) => b[1] - a[1]).map(([cat, val]) => (
                     <div key={cat} className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <Badge variant="secondary" className="text-xs capitalize">{cat}</Badge>

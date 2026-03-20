@@ -17,7 +17,9 @@ import {
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Pagination } from '@/components/ui/pagination';
-import { contratti, clienti } from '@/lib/mockdata';
+import { fetchContratti, fetchClienti } from '@/lib/actions/data';
+import { useServerData } from '@/lib/hooks/use-server-data';
+import { useAuth } from '@/lib/auth-context';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Search, Plus, FileSignature, AlertTriangle, CheckCircle, Clock, Save, MoreHorizontal, Pencil, Trash2, Copy, Download, RefreshCw, Eye } from 'lucide-react';
@@ -31,6 +33,15 @@ const statoBadge: Record<string, string> = {
 };
 
 export default function ContrattiPage() {
+  const { user } = useAuth();
+  const tenantId = user?.tenantId || 't-1';
+  const [allData, loading] = useServerData(
+    () => Promise.all([fetchContratti(tenantId), fetchClienti(tenantId)]),
+    [[], []]
+  );
+  const contratti = allData[0];
+  const clienti = allData[1];
+
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStato, setFilterStato] = useState<string>('tutti');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -91,6 +102,8 @@ export default function ContrattiPage() {
     setPageSize(size);
     setCurrentPage(1);
   };
+
+  if (loading) return <div className="p-8 text-center">Caricamento...</div>;
 
   return (
     <PageContainer

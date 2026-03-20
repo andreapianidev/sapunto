@@ -11,7 +11,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
-import { clienti, ordini, fatture, emails } from '@/lib/mockdata';
+import { fetchClienti, fetchOrdini, fetchFatture, fetchEmails } from '@/lib/actions/data';
+import { useServerData } from '@/lib/hooks/use-server-data';
+import { useAuth } from '@/lib/auth-context';
 import {
   formatCurrency, formatDate, formatPIVA,
   getStatoOrdineColor, getStatoOrdineLabel,
@@ -29,11 +31,24 @@ export default function ClienteDetailPage() {
   const router = useRouter();
   const id = params.id;
 
+  const { user } = useAuth();
+  const tenantId = user?.tenantId || 't-1';
+  const [allData, loading] = useServerData(
+    () => Promise.all([fetchClienti(tenantId), fetchOrdini(tenantId), fetchFatture(tenantId), fetchEmails(tenantId)]),
+    [[], [], [], []]
+  );
+  const clienti = allData[0];
+  const ordini = allData[1];
+  const fatture = allData[2];
+  const emails = allData[3];
+
   // TODO: Replace with Supabase query
   const cliente = clienti.find((c) => c.id === id);
-  const clienteOrdini = useMemo(() => ordini.filter((o) => o.clienteId === id), [id]);
-  const clienteFatture = useMemo(() => fatture.filter((f) => f.clienteId === id), [id]);
-  const clienteEmail = useMemo(() => emails.filter((e) => e.clienteId === id), [id]);
+  const clienteOrdini = useMemo(() => ordini.filter((o) => o.clienteId === id), [id, ordini]);
+  const clienteFatture = useMemo(() => fatture.filter((f) => f.clienteId === id), [id, fatture]);
+  const clienteEmail = useMemo(() => emails.filter((e) => e.clienteId === id), [id, emails]);
+
+  if (loading) return <div className="p-8 text-center">Caricamento...</div>;
 
   if (!cliente) {
     return (

@@ -1,9 +1,9 @@
 // TypeScript interfaces per Sapunto SaaS
-// TODO: Replace with Supabase database types
+// Compatible with both in-memory mockdata and PostgreSQL (null for optional fields)
 
 export type UserRole = 'superadmin' | 'tenant_admin' | 'utente';
 
-export type PianoAbbonamento = 'base' | 'professional' | 'premium';
+export type PianoAbbonamento = 'express' | 'explore' | 'experience';
 
 export interface Tenant {
   id: string;
@@ -18,7 +18,7 @@ export interface Tenant {
   email: string;
   pec: string;
   codiceDestinatario: string;
-  logo?: string;
+  logo?: string | null;
   piano: PianoAbbonamento;
   stato: 'attivo' | 'sospeso' | 'trial';
   dataCreazione: string;
@@ -34,7 +34,7 @@ export interface User {
   cognome: string;
   email: string;
   ruolo: UserRole;
-  avatar?: string;
+  avatar?: string | null;
   attivo: boolean;
 }
 
@@ -50,13 +50,13 @@ export interface Cliente {
   provincia: string;
   telefono: string;
   email: string;
-  pec?: string;
-  codiceDestinatario?: string;
+  pec?: string | null;
+  codiceDestinatario?: string | null;
   tipo: 'azienda' | 'privato';
   tags: string[];
-  note?: string;
+  note?: string | null;
   dataCreazione: string;
-  referente?: string;
+  referente?: string | null;
 }
 
 export interface Prodotto {
@@ -99,8 +99,8 @@ export interface Ordine {
   iva: number;
   totale: number;
   canale: 'diretto' | 'woocommerce' | 'prestashop' | 'telefono' | 'email';
-  note?: string;
-  fatturaId?: string;
+  note?: string | null;
+  fatturaId?: string | null;
 }
 
 export type StatoSDI = 'bozza' | 'inviata' | 'consegnata' | 'scartata' | 'in_attesa' | 'accettata' | 'rifiutata';
@@ -123,12 +123,12 @@ export interface Fattura {
   stato: 'pagata' | 'non_pagata' | 'scaduta' | 'parziale';
   statoSDI: StatoSDI;
   notificheSDI: NotificaSDI[];
-  ordineId?: string;
+  ordineId?: string | null;
   righe: RigaOrdine[];
   subtotale: number;
   iva: number;
   totale: number;
-  xmlRiferimento?: string;
+  xmlRiferimento?: string | null;
 }
 
 export interface Dipendente {
@@ -170,16 +170,16 @@ export interface Appuntamento {
   id: string;
   tenantId: string;
   titolo: string;
-  clienteId?: string;
-  clienteNome?: string;
+  clienteId?: string | null;
+  clienteNome?: string | null;
   operatoreId: string;
   operatoreNome: string;
   data: string;
   oraInizio: string;
   oraFine: string;
   stato: 'confermato' | 'in_attesa' | 'annullato';
-  luogo?: string;
-  note?: string;
+  luogo?: string | null;
+  note?: string | null;
 }
 
 export interface Email {
@@ -191,8 +191,8 @@ export interface Email {
   corpo: string;
   data: string;
   letto: boolean;
-  clienteId?: string;
-  clienteNome?: string;
+  clienteId?: string | null;
+  clienteNome?: string | null;
   tipo: 'ricevuta' | 'inviata' | 'bozza';
 }
 
@@ -204,7 +204,9 @@ export interface PianoConfig {
   maxUtenti: number;
   maxClienti: number;
   maxFatture: number;
+  costoUtenteAggiuntivo: number;
   funzionalita: string[];
+  descrizione: string;
 }
 
 export interface MovimentoMagazzino {
@@ -216,7 +218,7 @@ export interface MovimentoMagazzino {
   quantita: number;
   data: string;
   motivo: string;
-  ordineId?: string;
+  ordineId?: string | null;
 }
 
 export interface IntegrazionEcommerce {
@@ -224,8 +226,8 @@ export interface IntegrazionEcommerce {
   tenantId: string;
   piattaforma: 'woocommerce' | 'prestashop' | 'shopify';
   stato: 'attivo' | 'disattivo' | 'errore' | 'prossimamente';
-  urlNegozio?: string;
-  ultimoSync?: string;
+  urlNegozio?: string | null;
+  ultimoSync?: string | null;
   ordiniSincronizzati: number;
   prodottiMappati: number;
   errori: number;
@@ -258,8 +260,8 @@ export interface Preventivo {
   subtotale: number;
   iva: number;
   totale: number;
-  note?: string;
-  ordineId?: string;
+  note?: string | null;
+  ordineId?: string | null;
 }
 
 // ==================== LEAD / PIPELINE ====================
@@ -281,7 +283,7 @@ export interface Lead {
   assegnatoNome: string;
   dataCreazione: string;
   dataChiusuraPrevista: string;
-  note?: string;
+  note?: string | null;
 }
 
 // ==================== PROGETTI E TASK ====================
@@ -294,12 +296,12 @@ export interface Progetto {
   id: string;
   tenantId: string;
   nome: string;
-  clienteId?: string;
-  clienteNome?: string;
+  clienteId?: string | null;
+  clienteNome?: string | null;
   stato: StatoProgetto;
   dataInizio: string;
   dataFinePrevista: string;
-  budget?: number;
+  budget?: number | null;
   descrizione: string;
   responsabileId: string;
   responsabileNome: string;
@@ -311,14 +313,14 @@ export interface Task {
   tenantId: string;
   progettoId: string;
   titolo: string;
-  descrizione?: string;
+  descrizione?: string | null;
   stato: StatoTask;
   priorita: PrioritaTask;
   assegnatoA: string;
   assegnatoNome: string;
   dataScadenza: string;
-  oreStimate?: number;
-  oreEffettive?: number;
+  oreStimate?: number | null;
+  oreEffettive?: number | null;
 }
 
 // ==================== TICKET SUPPORTO ====================
@@ -330,17 +332,17 @@ export interface Ticket {
   id: string;
   tenantId: string;
   numero: string;
-  clienteId?: string;
-  clienteNome?: string;
+  clienteId?: string | null;
+  clienteNome?: string | null;
   oggetto: string;
   descrizione: string;
   priorita: PrioritaTicket;
   stato: StatoTicket;
   categoria: string;
-  assegnatoA?: string;
-  assegnatoNome?: string;
+  assegnatoA?: string | null;
+  assegnatoNome?: string | null;
   dataApertura: string;
-  dataChiusura?: string;
+  dataChiusura?: string | null;
   risposte: RispostaTicket[];
 }
 
@@ -369,7 +371,7 @@ export interface Contratto {
   dataFine: string;
   valoreAnnuale: number;
   rinnovo: 'automatico' | 'manuale';
-  note?: string;
+  note?: string | null;
 }
 
 // ==================== SPESE ====================
@@ -383,15 +385,15 @@ export interface Spesa {
   categoria: CategoriaSpesa;
   importo: number;
   data: string;
-  dipendenteId?: string;
-  dipendenteNome?: string;
-  clienteId?: string;
-  clienteNome?: string;
-  progettoId?: string;
-  progettoNome?: string;
+  dipendenteId?: string | null;
+  dipendenteNome?: string | null;
+  clienteId?: string | null;
+  clienteNome?: string | null;
+  progettoId?: string | null;
+  progettoNome?: string | null;
   stato: 'da_approvare' | 'approvata' | 'rifiutata' | 'rimborsata';
-  ricevuta?: boolean;
-  note?: string;
+  ricevuta?: boolean | null;
+  note?: string | null;
 }
 
 // ==================== NOTE DI CREDITO ====================

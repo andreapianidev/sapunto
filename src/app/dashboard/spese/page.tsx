@@ -20,7 +20,9 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Label } from '@/components/ui/label';
 import { Pagination } from '@/components/ui/pagination';
-import { spese } from '@/lib/mockdata';
+import { fetchSpese } from '@/lib/actions/data';
+import { useServerData } from '@/lib/hooks/use-server-data';
+import { useAuth } from '@/lib/auth-context';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { Search, Plus, Receipt, CheckCircle, Clock, XCircle, Save, MoreHorizontal, Pencil, Trash2, Copy, Download, Eye } from 'lucide-react';
 
@@ -42,6 +44,10 @@ const categoriaBadge: Record<string, string> = {
 };
 
 export default function SpesePage() {
+  const { user } = useAuth();
+  const tenantId = user?.tenantId || 't-1';
+  const [spese, loading] = useServerData(() => fetchSpese(tenantId), []);
+
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategoria, setFilterCategoria] = useState<string>('tutte');
   const [filterStato, setFilterStato] = useState<string>('tutti');
@@ -104,6 +110,8 @@ export default function SpesePage() {
     setPageSize(size);
     setCurrentPage(1);
   };
+
+  if (loading) return <div className="p-8 text-center">Caricamento...</div>;
 
   return (
     <PageContainer

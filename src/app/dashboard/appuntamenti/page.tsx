@@ -17,7 +17,9 @@ import {
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { appuntamenti, clienti } from '@/lib/mockdata';
+import { fetchAppuntamenti, fetchClienti } from '@/lib/actions/data';
+import { useServerData } from '@/lib/hooks/use-server-data';
+import { useAuth } from '@/lib/auth-context';
 import { formatDate } from '@/lib/utils';
 import { Plus, Calendar, Clock, MapPin, User, MoreHorizontal, Pencil, Trash2, Download, ChevronLeft, ChevronRight } from 'lucide-react';
 
@@ -25,6 +27,15 @@ const giorniSettimana = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom'];
 const giorniSettimanaCompleti = ['Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato', 'Domenica'];
 
 export default function AppuntamentiPage() {
+  const { user } = useAuth();
+  const tenantId = user?.tenantId || 't-1';
+  const [allData, loading] = useServerData(
+    () => Promise.all([fetchAppuntamenti(tenantId), fetchClienti(tenantId)]),
+    [[], []]
+  );
+  const appuntamenti = allData[0];
+  const clienti = allData[1];
+
   // Settimana corrente: 16-22 Marzo 2026 (Lun-Dom)
   const [settimanaOffset, setSettimanaOffset] = useState(0);
   const [meseOffset, setMeseOffset] = useState(0);
@@ -170,6 +181,8 @@ export default function AppuntamentiPage() {
   const handleBulkExport = () => {
     alert(`Demo: esportazione di ${selectedIds.size} appuntamenti selezionati!`);
   };
+
+  if (loading) return <div className="p-8 text-center">Caricamento...</div>;
 
   return (
     <PageContainer

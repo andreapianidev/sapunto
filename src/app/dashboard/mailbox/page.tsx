@@ -18,12 +18,23 @@ import {
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { emails, clienti } from '@/lib/mockdata';
+import { fetchEmails, fetchClienti } from '@/lib/actions/data';
+import { useServerData } from '@/lib/hooks/use-server-data';
+import { useAuth } from '@/lib/auth-context';
 import { formatDateTime } from '@/lib/utils';
 import { Search, Plus, Mail, Send, Inbox, Archive, Circle, MoreHorizontal, Pencil, Trash2, Download, Forward } from 'lucide-react';
 import type { Email } from '@/lib/types';
 
 export default function MailboxPage() {
+  const { user } = useAuth();
+  const tenantId = user?.tenantId || 't-1';
+  const [allData, loading] = useServerData(
+    () => Promise.all([fetchEmails(tenantId), fetchClienti(tenantId)]),
+    [[], []]
+  );
+  const emails = allData[0];
+  const clienti = allData[1];
+
   const [selectedEmail, setSelectedEmail] = useState<Email | null>(null);
   const [filterTipo, setFilterTipo] = useState<'tutte' | 'ricevuta' | 'inviata'>('tutte');
   const [searchTerm, setSearchTerm] = useState('');
@@ -39,6 +50,8 @@ export default function MailboxPage() {
   });
 
   const nonLette = emails.filter((e) => !e.letto).length;
+
+  if (loading) return <div className="p-8 text-center">Caricamento...</div>;
 
   return (
     <PageContainer

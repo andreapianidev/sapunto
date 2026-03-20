@@ -19,13 +19,24 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Label } from '@/components/ui/label';
-import { ordini, clienti, prodotti } from '@/lib/mockdata';
+import { fetchOrdini, fetchClienti, fetchProdotti } from '@/lib/actions/data';
+import { useServerData } from '@/lib/hooks/use-server-data';
+import { useAuth } from '@/lib/auth-context';
 import { formatCurrency, formatDate, getStatoOrdineColor, getStatoOrdineLabel } from '@/lib/utils';
 import { Search, Plus, Eye, ShoppingCart, Save, MoreHorizontal, Pencil, Trash2, Copy, Download } from 'lucide-react';
 import { Pagination } from '@/components/ui/pagination';
 import type { Ordine } from '@/lib/types';
 
 export default function OrdiniPage() {
+  const { user } = useAuth();
+  const tenantId = user?.tenantId || 't-1';
+  const [allData, loading] = useServerData(
+    () => Promise.all([fetchOrdini(tenantId), fetchClienti(tenantId), fetchProdotti(tenantId)]),
+    [[], [], []]
+  );
+  const ordini = allData[0];
+  const clienti = allData[1];
+  const prodotti = allData[2];
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStato, setFilterStato] = useState<string>('tutti');
   const [filterCanale, setFilterCanale] = useState<string>('tutti');
@@ -61,14 +72,16 @@ export default function OrdiniPage() {
       const matchCanale = filterCanale === 'tutti' || o.canale === filterCanale;
       return matchSearch && matchStato && matchCanale;
     });
-  }, [searchTerm, filterStato, filterCanale]);
+  }, [searchTerm, filterStato, filterCanale, ordini]);
 
   const stats = useMemo(() => ({
     totali: ordini.length,
     nuovi: ordini.filter((o) => o.stato === 'nuovo').length,
     inLavorazione: ordini.filter((o) => o.stato === 'in_lavorazione').length,
     completati: ordini.filter((o) => o.stato === 'completato').length,
-  }), []);
+  }), [ordini]);
+
+  if (loading) return <div className="p-8 text-center">Caricamento...</div>;
 
   return (
     <PageContainer
@@ -286,7 +299,7 @@ export default function OrdiniPage() {
                     <div className="flex items-center justify-end gap-1">
                       <Dialog>
                         <DialogTrigger
-                          onClick={() => setSelectedOrdine(ordine)}
+                          onClick={() => setSelectedOrdine(ordine as Ordine)}
                           className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground h-8 w-8"
                         >
                           <Eye className="h-4 w-4" />

@@ -2,7 +2,8 @@
 
 import { PageContainer } from '@/components/layout/page-container';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { tenants, statsPiattaforma, piani } from '@/lib/mockdata';
+import { fetchTenants, fetchPiani, fetchStatsPiattaforma } from '@/lib/actions/data';
+import { useServerData } from '@/lib/hooks/use-server-data';
 import { formatCurrency } from '@/lib/utils';
 import { Building2, Users, DollarSign, TrendingUp } from 'lucide-react';
 import {
@@ -11,6 +12,20 @@ import {
 } from 'recharts';
 
 export default function SuperAdminDashboard() {
+  const [allData, loading] = useServerData(
+    () => Promise.all([
+      fetchTenants(),
+      fetchPiani(),
+      fetchStatsPiattaforma(),
+    ]),
+    [[], [], { tenantAttivi: 0, utentiTotali: 0, mrr: 0, mrrTrend: [], crescitaUtenti: [], churnRate: 0 }]
+  );
+  const tenants = allData[0];
+  const piani = allData[1];
+  const statsPiattaforma = allData[2];
+
+  if (loading) return <div className="p-8 text-center">Caricamento...</div>;
+
   return (
     <PageContainer title="Dashboard Piattaforma" description="Panoramica globale Sapunto">
       {/* KPI */}
@@ -111,8 +126,8 @@ export default function SuperAdminDashboard() {
           <CardTitle className="text-base font-semibold">Riepilogo Tenant</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {tenants.map((t) => {
-            const piano = piani.find((p) => p.id === t.piano);
+          {tenants.map((t: any) => {
+            const piano = piani.find((p: any) => p.id === t.piano);
             return (
               <div key={t.id} className="flex items-center justify-between border-b border-border pb-3 last:border-0 last:pb-0">
                 <div className="flex items-center gap-3">

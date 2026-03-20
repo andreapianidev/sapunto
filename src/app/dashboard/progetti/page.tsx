@@ -11,7 +11,9 @@ import { Label } from '@/components/ui/label';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
-import { progetti, tasks } from '@/lib/mockdata';
+import { fetchProgetti, fetchTasks } from '@/lib/actions/data';
+import { useServerData } from '@/lib/hooks/use-server-data';
+import { useAuth } from '@/lib/auth-context';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { Plus, FolderKanban, CheckCircle, Clock, Save, MoreHorizontal, Pencil, Trash2, Download, Search, Eye, ListTodo, CalendarDays, User as UserIcon } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -26,6 +28,15 @@ const taskStatoBorder: Record<string, string> = { da_fare: 'border-t-gray-400', 
 const taskFasi: StatoTask[] = ['da_fare', 'in_corso', 'in_revisione', 'completato'];
 
 export default function ProgettiPage() {
+  const { user } = useAuth();
+  const tenantId = user?.tenantId || 't-1';
+  const [allData, loading] = useServerData(
+    () => Promise.all([fetchProgetti(tenantId), fetchTasks(tenantId)]),
+    [[], []]
+  );
+  const progetti = allData[0];
+  const tasks = allData[1];
+
   const [selectedProject, setSelectedProject] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStato, setFilterStato] = useState<string>('tutti');
@@ -45,6 +56,8 @@ export default function ProgettiPage() {
   }, [searchTerm, filterStato]);
 
   const projectTasks = selectedProject ? tasks.filter((t) => t.progettoId === selectedProject) : [];
+
+  if (loading) return <div className="p-8 text-center">Caricamento...</div>;
 
   return (
     <PageContainer title="Progetti" description="Gestione progetti e task" actions={
