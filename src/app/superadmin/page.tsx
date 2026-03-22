@@ -12,7 +12,7 @@ import {
 } from 'recharts';
 
 export default function SuperAdminDashboard() {
-  const [allData, loading] = useServerData(
+  const [allData, loading, refresh] = useServerData(
     () => Promise.all([
       fetchTenants(),
       fetchPiani(),

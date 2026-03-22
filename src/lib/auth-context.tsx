@@ -1,96 +1,84 @@
 'use client';
 
-import { createContext, useContext, useState, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import type { User, Tenant, UserRole } from './types';
 
 interface AuthContextType {
   user: User | null;
   tenant: Tenant | null;
   role: UserRole | null;
-  login: (role: UserRole, tenantId?: string) => void;
-  logout: () => void;
-  switchTenant: (tenantId: string) => void;
+  loading: boolean;
+  login: (email: string, password: string) => Promise<{ ok: boolean; error?: string }>;
+  logout: () => Promise<void>;
+  refreshSession: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
-
-// TODO: Replace with Supabase Auth
-const mockUsers: Record<string, User> = {
-  superadmin: {
-    id: 'u-super-1',
-    tenantId: '',
-    nome: 'Marco',
-    cognome: 'Verdi',
-    email: 'admin@sapunto.cloud',
-    ruolo: 'superadmin',
-    attivo: true,
-  },
-  tenant_admin: {
-    id: 'u-admin-1',
-    tenantId: 't-1',
-    nome: 'Luigi',
-    cognome: 'Rossi',
-    email: 'luigi@rossielettonica.it',
-    ruolo: 'tenant_admin',
-    attivo: true,
-  },
-  utente: {
-    id: 'u-op-1',
-    tenantId: 't-1',
-    nome: 'Anna',
-    cognome: 'Bianchi',
-    email: 'anna@rossielettonica.it',
-    ruolo: 'utente',
-    attivo: true,
-  },
-};
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [tenant, setTenant] = useState<Tenant | null>(null);
   const [role, setRole] = useState<UserRole | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const login = (selectedRole: UserRole, tenantId?: string) => {
-    const mockUser = mockUsers[selectedRole];
-    if (mockUser) {
-      setUser(mockUser);
-      setRole(selectedRole);
-      // Tenant will be loaded from mockdata
-      if (tenantId) {
-        // Dynamic import to avoid circular dependency
-        import('./mockdata').then((mod) => {
-          const t = mod.tenants.find((t) => t.id === tenantId);
-          if (t) setTenant(t);
-        });
-      } else if (selectedRole !== 'superadmin') {
-        import('./mockdata').then((mod) => {
-          const t = mod.tenants.find((t) => t.id === mockUser.tenantId);
-          if (t) setTenant(t);
-        });
+  const refreshSession = useCallback(async () => {
+    try {
+      const res = await fetch('/api/auth/session');
+      const data = await res.json();
+      if (data.user) {
+        setUser(data.user);
+        setRole(data.user.ruolo);
+        setTenant(data.tenant);
+      } else {
+        setUser(null);
+        setRole(null);
+        setTenant(null);
       }
+    } catch {
+      setUser(null);
+      setRole(null);
+      setTenant(null);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    refreshSession();
+  }, [refreshSession]);
+
+  const login = async (email: string, password: string) => {
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        return { ok: false, error: data.error || 'Errore di login' };
+      }
+      // Refresh session to get full user + tenant data
+      await refreshSession();
+      return { ok: true };
+    } catch {
+      return { ok: false, error: 'Errore di connessione' };
     }
   };
 
-  const logout = () => {
+  const logout = async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+    } catch {
+      // ignore
+    }
     setUser(null);
     setTenant(null);
     setRole(null);
   };
 
-  const switchTenant = (tenantId: string) => {
-    import('./mockdata').then((mod) => {
-      const t = mod.tenants.find((t) => t.id === tenantId);
-      if (t) {
-        setTenant(t);
-        if (user) {
-          setUser({ ...user, tenantId });
-        }
-      }
-    });
-  };
-
   return (
-    <AuthContext.Provider value={{ user, tenant, role, login, logout, switchTenant }}>
+    <AuthContext.Provider value={{ user, tenant, role, loading, login, logout, refreshSession }}>
       {children}
     </AuthContext.Provider>
   );

@@ -10,7 +10,7 @@ import { formatCurrency } from '@/lib/utils';
 import { Check, Edit, Users, FileText, CreditCard } from 'lucide-react';
 
 export default function PianiPage() {
-  const [allData, loading] = useServerData(
+  const [allData, loading, refresh] = useServerData(
     () => Promise.all([fetchPiani(), fetchTenants()]),
     [[], []]
   );

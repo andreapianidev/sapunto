@@ -117,7 +117,7 @@ const notificaStyles: Record<string, { bg: string; text: string; border: string 
 export default function DashboardPage() {
   const { user } = useAuth();
   const tenantId = user?.tenantId || 't-1';
-  const [allData, loading] = useServerData(
+  const [allData, loading, refresh] = useServerData(
     () => Promise.all([
       fetchVenditeMensili(tenantId),
       fetchTopClienti(tenantId),

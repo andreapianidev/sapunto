@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { PageContainer } from '@/components/layout/page-container';
@@ -11,7 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
-import { fetchClienti, fetchOrdini, fetchFatture, fetchEmails } from '@/lib/actions/data';
+import { fetchClienti, fetchOrdini, fetchFatture, fetchEmails, deleteCliente, updateCliente } from '@/lib/actions/data';
 import { useServerData } from '@/lib/hooks/use-server-data';
 import { useAuth } from '@/lib/auth-context';
 import {
@@ -23,7 +23,7 @@ import {
 import {
   ArrowLeft, Building2, User as UserIcon, Mail, Phone, MapPin,
   FileText, ShoppingCart, Pencil, Trash2, Euro, Clock, StickyNote,
-  Globe, Hash, UserCheck, CalendarDays, Plus, MessageSquare,
+  Globe, Hash, UserCheck, CalendarDays, Plus, MessageSquare, Loader2,
 } from 'lucide-react';
 
 export default function ClienteDetailPage() {
@@ -33,7 +33,8 @@ export default function ClienteDetailPage() {
 
   const { user } = useAuth();
   const tenantId = user?.tenantId || 't-1';
-  const [allData, loading] = useServerData(
+  const [submitting, setSubmitting] = useState(false);
+  const [allData, loading, refresh] = useServerData(
     () => Promise.all([fetchClienti(tenantId), fetchOrdini(tenantId), fetchFatture(tenantId), fetchEmails(tenantId)]),
     [[], [], [], []]
   );
@@ -89,12 +90,21 @@ export default function ClienteDetailPage() {
               Indietro
             </Button>
           </Link>
-          <Button size="sm" className="bg-[#1a2332] hover:bg-[#1a2332]/90" onClick={() => alert('Demo: modifica cliente!')}>
+          <Button size="sm" className="bg-[#1a2332] hover:bg-[#1a2332]/90" disabled={submitting}>
             <Pencil className="mr-2 h-4 w-4" />
             Modifica
           </Button>
-          <Button variant="destructive" size="sm" onClick={() => { alert('Demo: cliente eliminato!'); router.push('/dashboard/clienti'); }}>
-            <Trash2 className="mr-2 h-4 w-4" />
+          <Button variant="destructive" size="sm" disabled={submitting} onClick={async () => {
+            if (!confirm('Sei sicuro di voler eliminare questo cliente?')) return;
+            setSubmitting(true);
+            const result = await deleteCliente(id);
+            if (result.ok) {
+              router.push('/dashboard/clienti');
+            } else {
+              setSubmitting(false);
+            }
+          }}>
+            {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
             Elimina
           </Button>
         </div>
@@ -492,7 +502,14 @@ export default function ClienteDetailPage() {
                 <Button
                   size="sm"
                   className="bg-[#1a2332] hover:bg-[#1a2332]/90"
-                  onClick={() => alert('Demo: nuova nota aggiunta!')}
+                  onClick={async () => {
+                    const nota = prompt('Inserisci la nota:');
+                    if (nota) {
+                      const currentNote = cliente.note ? `${cliente.note}\n\n---\n\n${nota}` : nota;
+                      await updateCliente(id, { note: currentNote });
+                      refresh();
+                    }
+                  }}
                 >
                   <Plus className="mr-2 h-4 w-4" />
                   Aggiungi nota

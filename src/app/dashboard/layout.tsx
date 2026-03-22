@@ -2,8 +2,6 @@
 
 import { useAuth } from '@/lib/auth-context';
 import { useSidebar } from '@/lib/sidebar-context';
-import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
 import { Sidebar, MobileSidebar } from '@/components/layout/sidebar';
 import { Header } from '@/components/layout/header';
 import { cn } from '@/lib/utils';
@@ -13,17 +11,18 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
   const { collapsed } = useSidebar();
-  const router = useRouter();
 
-  useEffect(() => {
-    if (!user) {
-      router.push('/login');
-    }
-  }, [user, router]);
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#1a2332]" />
+      </div>
+    );
+  }
 
-  if (!user) return null;
+  if (!user) return null; // middleware handles redirect
 
   return (
     <div className="min-h-screen bg-background">

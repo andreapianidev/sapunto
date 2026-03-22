@@ -50,7 +50,7 @@ const metodoLabel: Record<string, string> = {
 
 export default function BillingPage() {
   const { user } = useAuth();
-  const [allData, loading] = useServerData(
+  const [allData, loading, refresh] = useServerData(
     () => Promise.all([fetchTenants(), fetchPiani(), fetchTransazioniPiattaforma(), fetchAbbonamenti()]),
     [[], [], [], []]
   );

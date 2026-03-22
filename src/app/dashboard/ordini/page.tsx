@@ -19,7 +19,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Label } from '@/components/ui/label';
-import { fetchOrdini, fetchClienti, fetchProdotti } from '@/lib/actions/data';
+import { fetchOrdini, fetchClienti, fetchProdotti, createOrdine, updateOrdine, deleteOrdine } from '@/lib/actions/data';
 import { useServerData } from '@/lib/hooks/use-server-data';
 import { useAuth } from '@/lib/auth-context';
 import { formatCurrency, formatDate, getStatoOrdineColor, getStatoOrdineLabel } from '@/lib/utils';
@@ -30,7 +30,7 @@ import type { Ordine } from '@/lib/types';
 export default function OrdiniPage() {
   const { user } = useAuth();
   const tenantId = user?.tenantId || 't-1';
-  const [allData, loading] = useServerData(
+  const [allData, loading, refresh] = useServerData(
     () => Promise.all([fetchOrdini(tenantId), fetchClienti(tenantId), fetchProdotti(tenantId)]),
     [[], [], []]
   );
@@ -44,6 +44,23 @@ export default function OrdiniPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [submitting, setSubmitting] = useState(false);
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+
+  // Form state for new order
+  const [formClienteId, setFormClienteId] = useState('');
+  const [formCanale, setFormCanale] = useState<'diretto' | 'woocommerce' | 'prestashop' | 'telefono' | 'email'>('diretto');
+  const [formData, setFormData] = useState(new Date().toISOString().split('T')[0]);
+  const [formNote, setFormNote] = useState('');
+  const [formQuantities, setFormQuantities] = useState<Record<string, number>>({});
+
+  const resetForm = () => {
+    setFormClienteId(clienti.length > 0 ? clienti[0].id : '');
+    setFormCanale('diretto');
+    setFormData(new Date().toISOString().split('T')[0]);
+    setFormNote('');
+    setFormQuantities({});
+  };
 
   const toggleSelect = (id: string) => {
     setSelectedIds((prev) => {
@@ -81,6 +98,151 @@ export default function OrdiniPage() {
     completati: ordini.filter((o) => o.stato === 'completato').length,
   }), [ordini]);
 
+  const handleCreateOrdine = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (submitting) return;
+    setSubmitting(true);
+
+    try {
+      const selectedCliente = clienti.find((c) => c.id === formClienteId);
+      const righe = prodotti
+        .slice(0, 8)
+        .filter((p) => (formQuantities[p.id] || 0) > 0)
+        .map((p) => {
+          const qty = formQuantities[p.id] || 0;
+          const lineTotal = p.prezzo * qty;
+          return {
+            prodottoId: p.id,
+            nome: p.nome,
+            quantita: qty,
+            prezzoUnitario: p.prezzo,
+            iva: lineTotal * 0.22,
+            totale: lineTotal,
+          };
+        });
+
+      const subtotale = righe.reduce((acc, r) => acc + r.totale, 0);
+      const iva = subtotale * 0.22;
+      const totale = subtotale + iva;
+
+      const result = await createOrdine({
+        tenantId,
+        clienteId: formClienteId,
+        clienteNome: selectedCliente?.ragioneSociale || '',
+        data: formData,
+        stato: 'nuovo',
+        righe,
+        subtotale: subtotale.toFixed(2),
+        iva: iva.toFixed(2),
+        totale: totale.toFixed(2),
+        canale: formCanale,
+        note: formNote || undefined,
+      });
+
+      if (result.ok) {
+        setCreateDialogOpen(false);
+        resetForm();
+        refresh();
+      } else {
+        alert(result.error || 'Errore nella creazione dell\'ordine');
+      }
+    } catch {
+      alert('Errore nella creazione dell\'ordine');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDeleteOrdine = async (id: string) => {
+    if (submitting) return;
+    if (!confirm('Sei sicuro di voler eliminare questo ordine?')) return;
+    setSubmitting(true);
+    try {
+      const result = await deleteOrdine(id);
+      if (result.ok) {
+        refresh();
+      } else {
+        alert(result.error || 'Errore nell\'eliminazione dell\'ordine');
+      }
+    } catch {
+      alert('Errore nell\'eliminazione dell\'ordine');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDeleteSelected = async () => {
+    if (submitting) return;
+    if (!confirm(`Sei sicuro di voler eliminare ${selectedIds.size} ordini?`)) return;
+    setSubmitting(true);
+    try {
+      const ids = Array.from(selectedIds);
+      for (const id of ids) {
+        await deleteOrdine(id);
+      }
+      setSelectedIds(new Set());
+      refresh();
+    } catch {
+      alert('Errore nell\'eliminazione degli ordini');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleUpdateStato = async (id: string, newStato: string) => {
+    if (submitting) return;
+    setSubmitting(true);
+    try {
+      const result = await updateOrdine(id, { stato: newStato });
+      if (result.ok) {
+        refresh();
+      } else {
+        alert(result.error || 'Errore nell\'aggiornamento dello stato');
+      }
+    } catch {
+      alert('Errore nell\'aggiornamento dello stato');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDuplicateOrdine = async (ordine: Ordine) => {
+    if (submitting) return;
+    setSubmitting(true);
+    try {
+      const result = await createOrdine({
+        tenantId,
+        clienteId: ordine.clienteId,
+        clienteNome: ordine.clienteNome,
+        data: new Date().toISOString().split('T')[0],
+        stato: 'nuovo',
+        righe: ordine.righe.map((r) => ({
+          prodottoId: r.prodottoId,
+          nome: r.nome,
+          quantita: r.quantita,
+          prezzoUnitario: r.prezzoUnitario,
+          iva: r.iva,
+          totale: r.totale,
+        })),
+        subtotale: String(ordine.subtotale),
+        iva: String(ordine.iva),
+        totale: String(ordine.totale),
+        canale: ordine.canale as 'diretto' | 'woocommerce' | 'prestashop' | 'telefono' | 'email',
+        note: ordine.note || undefined,
+      });
+
+      if (result.ok) {
+        refresh();
+      } else {
+        alert(result.error || 'Errore nella duplicazione dell\'ordine');
+      }
+    } catch {
+      alert('Errore nella duplicazione dell\'ordine');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   if (loading) return <div className="p-8 text-center">Caricamento...</div>;
 
   return (
@@ -93,7 +255,7 @@ export default function OrdiniPage() {
             <Download className="mr-2 h-4 w-4" />
             Esporta CSV
           </Button>
-          <Dialog>
+          <Dialog open={createDialogOpen} onOpenChange={(open) => { setCreateDialogOpen(open); if (open) resetForm(); }}>
             <DialogTrigger className="inline-flex items-center justify-center rounded-md text-sm font-medium h-8 px-3 bg-[#1a2332] text-white hover:bg-[#1a2332]/90">
               <Plus className="mr-2 h-4 w-4" />
               Nuovo Ordine
@@ -102,11 +264,11 @@ export default function OrdiniPage() {
             <DialogHeader>
               <DialogTitle>Nuovo Ordine</DialogTitle>
             </DialogHeader>
-            <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); alert('Demo: ordine creato!'); }}>
+            <form className="space-y-4" onSubmit={handleCreateOrdine}>
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="sm:col-span-2">
                   <Label>Cliente *</Label>
-                  <Select defaultValue="c-1">
+                  <Select value={formClienteId || (clienti.length > 0 ? clienti[0].id : '')} onValueChange={(v) => v && setFormClienteId(v)}>
                     <SelectTrigger className="mt-1 w-full">
                       <SelectValue />
                     </SelectTrigger>
@@ -119,7 +281,7 @@ export default function OrdiniPage() {
                 </div>
                 <div>
                   <Label>Canale</Label>
-                  <Select defaultValue="diretto">
+                  <Select value={formCanale} onValueChange={(v) => setFormCanale(v as typeof formCanale)}>
                     <SelectTrigger className="mt-1 w-full">
                       <SelectValue />
                     </SelectTrigger>
@@ -134,7 +296,7 @@ export default function OrdiniPage() {
                 </div>
                 <div>
                   <Label>Data</Label>
-                  <Input type="date" defaultValue="2026-03-18" className="mt-1" />
+                  <Input type="date" value={formData} onChange={(e) => setFormData(e.target.value)} className="mt-1" />
                 </div>
               </div>
               <div>
@@ -144,19 +306,25 @@ export default function OrdiniPage() {
                     <div key={p.id} className="flex items-center justify-between text-sm">
                       <span className="flex-1 truncate">{p.nome}</span>
                       <span className="text-muted-foreground mx-2">{formatCurrency(p.prezzo)}</span>
-                      <Input type="number" min={0} defaultValue={0} className="w-16 h-7 text-center" />
+                      <Input
+                        type="number"
+                        min={0}
+                        value={formQuantities[p.id] || 0}
+                        onChange={(e) => setFormQuantities((prev) => ({ ...prev, [p.id]: parseInt(e.target.value) || 0 }))}
+                        className="w-16 h-7 text-center"
+                      />
                     </div>
                   ))}
                 </div>
               </div>
               <div>
                 <Label>Note</Label>
-                <Input placeholder="Note aggiuntive..." className="mt-1" />
+                <Input placeholder="Note aggiuntive..." className="mt-1" value={formNote} onChange={(e) => setFormNote(e.target.value)} />
               </div>
               <div className="flex justify-end gap-2 pt-2">
-                <Button type="submit" className="bg-[#1a2332] hover:bg-[#1a2332]/90">
+                <Button type="submit" className="bg-[#1a2332] hover:bg-[#1a2332]/90" disabled={submitting}>
                   <Save className="mr-2 h-4 w-4" />
-                  Crea Ordine
+                  {submitting ? 'Creazione...' : 'Crea Ordine'}
                 </Button>
               </div>
             </form>
@@ -236,11 +404,11 @@ export default function OrdiniPage() {
           <CardContent className="p-3">
             <div className="flex items-center gap-3">
               <span className="text-sm font-medium">{selectedIds.size} selezionati</span>
-              <Button variant="destructive" size="sm" onClick={() => alert('Demo: azione eseguita!')}>
+              <Button variant="destructive" size="sm" onClick={handleDeleteSelected} disabled={submitting}>
                 <Trash2 className="mr-2 h-4 w-4" />
-                Elimina selezionati
+                {submitting ? 'Eliminazione...' : 'Elimina selezionati'}
               </Button>
-              <Button variant="outline" size="sm" onClick={() => alert('Demo: azione eseguita!')}>
+              <Button variant="outline" size="sm" onClick={() => alert('Demo: esporta selezionati!')}>
                 <Download className="mr-2 h-4 w-4" />
                 Esporta selezionati
               </Button>
@@ -364,6 +532,24 @@ export default function OrdiniPage() {
                                 <span>{formatCurrency(ordine.totale)}</span>
                               </div>
                             </div>
+                            <div className="border-t pt-3">
+                              <Label className="text-sm font-semibold">Cambia Stato</Label>
+                              <Select
+                                value={ordine.stato}
+                                onValueChange={(newStato) => newStato && handleUpdateStato(ordine.id, newStato)}
+                              >
+                                <SelectTrigger className="mt-1 w-full">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="nuovo">Nuovo</SelectItem>
+                                  <SelectItem value="in_lavorazione">In Lavorazione</SelectItem>
+                                  <SelectItem value="spedito">Spedito</SelectItem>
+                                  <SelectItem value="completato">Completato</SelectItem>
+                                  <SelectItem value="annullato">Annullato</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
                           </div>
                         </DialogContent>
                       </Dialog>
@@ -372,16 +558,16 @@ export default function OrdiniPage() {
                           <MoreHorizontal className="h-4 w-4" />
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => alert('Demo: azione eseguita!')}>
+                          <DropdownMenuItem onClick={() => handleUpdateStato(ordine.id, ordine.stato === 'nuovo' ? 'in_lavorazione' : ordine.stato === 'in_lavorazione' ? 'spedito' : 'completato')}>
                             <Pencil className="mr-2 h-4 w-4" />
-                            Modifica
+                            Avanza stato
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => alert('Demo: azione eseguita!')}>
+                          <DropdownMenuItem onClick={() => handleDuplicateOrdine(ordine as Ordine)}>
                             <Copy className="mr-2 h-4 w-4" />
                             Duplica
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
-                          <DropdownMenuItem onClick={() => alert('Demo: azione eseguita!')} className="text-red-600">
+                          <DropdownMenuItem onClick={() => handleDeleteOrdine(ordine.id)} className="text-red-600">
                             <Trash2 className="mr-2 h-4 w-4" />
                             Elimina
                           </DropdownMenuItem>

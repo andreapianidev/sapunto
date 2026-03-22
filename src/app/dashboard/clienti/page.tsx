@@ -21,16 +21,32 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Label } from '@/components/ui/label';
 import { Pagination } from '@/components/ui/pagination';
-import { fetchClienti, fetchOrdini, fetchFatture } from '@/lib/actions/data';
+import { fetchClienti, fetchOrdini, fetchFatture, createCliente, updateCliente, deleteCliente } from '@/lib/actions/data';
 import { useServerData } from '@/lib/hooks/use-server-data';
 import { useAuth } from '@/lib/auth-context';
 import { formatDate, formatPIVA } from '@/lib/utils';
 import { Search, Plus, Download, Upload, Eye, Building2, User as UserIcon, Save, MoreHorizontal, Pencil, Trash2, Copy, FileUp } from 'lucide-react';
+import type { Cliente } from '@/lib/types';
+
+const emptyForm = {
+  ragioneSociale: '',
+  tipo: 'azienda' as 'azienda' | 'privato',
+  partitaIva: '',
+  codiceFiscale: '',
+  email: '',
+  telefono: '',
+  indirizzo: '',
+  citta: '',
+  cap: '',
+  provincia: '',
+  pec: '',
+  codiceDestinatario: '',
+};
 
 export default function ClientiPage() {
   const { user } = useAuth();
   const tenantId = user?.tenantId || 't-1';
-  const [allData, loading] = useServerData(
+  const [allData, loading, refresh] = useServerData(
     () => Promise.all([fetchClienti(tenantId), fetchOrdini(tenantId), fetchFatture(tenantId)]),
     [[], [], []]
   );
@@ -44,6 +60,18 @@ export default function ClientiPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [showImportDialog, setShowImportDialog] = useState(false);
+
+  // Create dialog state
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [createForm, setCreateForm] = useState({ ...emptyForm });
+
+  // Edit dialog state
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [editingCliente, setEditingCliente] = useState<Cliente | null>(null);
+  const [editForm, setEditForm] = useState({ ...emptyForm });
+
+  // Submitting state
+  const [submitting, setSubmitting] = useState(false);
 
   const toggleSelect = (id: string) => {
     setSelectedIds((prev) => {
@@ -80,6 +108,303 @@ export default function ClientiPage() {
       return matchSearch && matchTipo && matchTag;
     });
   }, [searchTerm, filterTipo, filterTag, clienti]);
+
+  // --- Handlers ---
+
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    try {
+      const res = await createCliente({
+        tenantId,
+        ragioneSociale: createForm.ragioneSociale,
+        tipo: createForm.tipo,
+        partitaIva: createForm.partitaIva,
+        codiceFiscale: createForm.codiceFiscale,
+        email: createForm.email,
+        telefono: createForm.telefono,
+        indirizzo: createForm.indirizzo,
+        citta: createForm.citta,
+        cap: createForm.cap,
+        provincia: createForm.provincia,
+        pec: createForm.pec || undefined,
+        codiceDestinatario: createForm.codiceDestinatario || undefined,
+      });
+      if (res.ok) {
+        setShowCreateDialog(false);
+        setCreateForm({ ...emptyForm });
+        refresh();
+      } else {
+        window.alert(res.error || 'Errore nella creazione del cliente');
+      }
+    } catch (err) {
+      window.alert('Errore nella creazione del cliente');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingCliente) return;
+    setSubmitting(true);
+    try {
+      const res = await updateCliente(editingCliente.id, {
+        ragioneSociale: editForm.ragioneSociale,
+        tipo: editForm.tipo,
+        partitaIva: editForm.partitaIva,
+        codiceFiscale: editForm.codiceFiscale,
+        email: editForm.email,
+        telefono: editForm.telefono,
+        indirizzo: editForm.indirizzo,
+        citta: editForm.citta,
+        cap: editForm.cap,
+        provincia: editForm.provincia,
+        pec: editForm.pec || undefined,
+        codiceDestinatario: editForm.codiceDestinatario || undefined,
+      });
+      if (res.ok) {
+        setShowEditDialog(false);
+        setEditingCliente(null);
+        refresh();
+      } else {
+        window.alert(res.error || 'Errore nella modifica del cliente');
+      }
+    } catch (err) {
+      window.alert('Errore nella modifica del cliente');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!window.confirm('Sei sicuro di voler eliminare questo cliente?')) return;
+    setSubmitting(true);
+    try {
+      const res = await deleteCliente(id);
+      if (res.ok) {
+        refresh();
+      } else {
+        window.alert(res.error || 'Errore nella eliminazione del cliente');
+      }
+    } catch (err) {
+      window.alert('Errore nella eliminazione del cliente');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (!window.confirm(`Sei sicuro di voler eliminare ${selectedIds.size} clienti?`)) return;
+    setSubmitting(true);
+    try {
+      const ids = Array.from(selectedIds);
+      for (const id of ids) {
+        const res = await deleteCliente(id);
+        if (!res.ok) {
+          window.alert(res.error || `Errore eliminando il cliente ${id}`);
+        }
+      }
+      setSelectedIds(new Set());
+      refresh();
+    } catch (err) {
+      window.alert('Errore nella eliminazione dei clienti');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDuplicate = async (cliente: Cliente) => {
+    setSubmitting(true);
+    try {
+      const res = await createCliente({
+        tenantId,
+        ragioneSociale: `${cliente.ragioneSociale} (copia)`,
+        tipo: cliente.tipo,
+        partitaIva: cliente.partitaIva,
+        codiceFiscale: cliente.codiceFiscale,
+        email: cliente.email,
+        telefono: cliente.telefono,
+        indirizzo: cliente.indirizzo,
+        citta: cliente.citta,
+        cap: cliente.cap,
+        provincia: cliente.provincia,
+        pec: cliente.pec || undefined,
+        codiceDestinatario: cliente.codiceDestinatario || undefined,
+        referente: cliente.referente || undefined,
+        note: cliente.note || undefined,
+        tags: cliente.tags,
+      });
+      if (res.ok) {
+        refresh();
+      } else {
+        window.alert(res.error || 'Errore nella duplicazione del cliente');
+      }
+    } catch (err) {
+      window.alert('Errore nella duplicazione del cliente');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const openEditDialog = (cliente: Cliente) => {
+    setEditingCliente(cliente);
+    setEditForm({
+      ragioneSociale: cliente.ragioneSociale,
+      tipo: cliente.tipo,
+      partitaIva: cliente.partitaIva,
+      codiceFiscale: cliente.codiceFiscale,
+      email: cliente.email,
+      telefono: cliente.telefono,
+      indirizzo: cliente.indirizzo,
+      citta: cliente.citta,
+      cap: cliente.cap,
+      provincia: cliente.provincia,
+      pec: cliente.pec || '',
+      codiceDestinatario: cliente.codiceDestinatario || '',
+    });
+    setShowEditDialog(true);
+  };
+
+  // Reusable form JSX builder
+  const renderForm = (
+    form: typeof emptyForm,
+    setForm: React.Dispatch<React.SetStateAction<typeof emptyForm>>,
+    onSubmit: (e: React.FormEvent) => void,
+    submitLabel: string
+  ) => (
+    <form className="space-y-4" onSubmit={onSubmit}>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div>
+          <Label>Ragione Sociale *</Label>
+          <Input
+            placeholder="Es. Azienda S.r.l."
+            className="mt-1"
+            required
+            value={form.ragioneSociale}
+            onChange={(e) => setForm((f) => ({ ...f, ragioneSociale: e.target.value }))}
+          />
+        </div>
+        <div>
+          <Label>Tipo</Label>
+          <Select
+            value={form.tipo}
+            onValueChange={(v) => setForm((f) => ({ ...f, tipo: v as 'azienda' | 'privato' }))}
+          >
+            <SelectTrigger className="mt-1 w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="azienda">Azienda</SelectItem>
+              <SelectItem value="privato">Privato</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <Label>Partita IVA</Label>
+          <Input
+            placeholder="01234567890"
+            className="mt-1"
+            value={form.partitaIva}
+            onChange={(e) => setForm((f) => ({ ...f, partitaIva: e.target.value }))}
+          />
+        </div>
+        <div>
+          <Label>Codice Fiscale</Label>
+          <Input
+            placeholder="Codice fiscale"
+            className="mt-1"
+            value={form.codiceFiscale}
+            onChange={(e) => setForm((f) => ({ ...f, codiceFiscale: e.target.value }))}
+          />
+        </div>
+        <div>
+          <Label>Email *</Label>
+          <Input
+            type="email"
+            placeholder="email@azienda.it"
+            className="mt-1"
+            required
+            value={form.email}
+            onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+          />
+        </div>
+        <div>
+          <Label>Telefono</Label>
+          <Input
+            placeholder="+39 02 1234567"
+            className="mt-1"
+            value={form.telefono}
+            onChange={(e) => setForm((f) => ({ ...f, telefono: e.target.value }))}
+          />
+        </div>
+        <div className="sm:col-span-2">
+          <Label>Indirizzo</Label>
+          <Input
+            placeholder="Via Roma 1"
+            className="mt-1"
+            value={form.indirizzo}
+            onChange={(e) => setForm((f) => ({ ...f, indirizzo: e.target.value }))}
+          />
+        </div>
+        <div>
+          <Label>Città</Label>
+          <Input
+            placeholder="Milano"
+            className="mt-1"
+            value={form.citta}
+            onChange={(e) => setForm((f) => ({ ...f, citta: e.target.value }))}
+          />
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <Label>CAP</Label>
+            <Input
+              placeholder="20121"
+              className="mt-1"
+              value={form.cap}
+              onChange={(e) => setForm((f) => ({ ...f, cap: e.target.value }))}
+            />
+          </div>
+          <div>
+            <Label>Provincia</Label>
+            <Input
+              placeholder="MI"
+              maxLength={2}
+              className="mt-1"
+              value={form.provincia}
+              onChange={(e) => setForm((f) => ({ ...f, provincia: e.target.value }))}
+            />
+          </div>
+        </div>
+        <div>
+          <Label>PEC</Label>
+          <Input
+            placeholder="azienda@pec.it"
+            className="mt-1"
+            value={form.pec}
+            onChange={(e) => setForm((f) => ({ ...f, pec: e.target.value }))}
+          />
+        </div>
+        <div>
+          <Label>Codice Destinatario</Label>
+          <Input
+            placeholder="USAL8PV"
+            maxLength={7}
+            className="mt-1"
+            value={form.codiceDestinatario}
+            onChange={(e) => setForm((f) => ({ ...f, codiceDestinatario: e.target.value }))}
+          />
+        </div>
+      </div>
+      <div className="flex justify-end gap-2 pt-2">
+        <Button type="submit" className="bg-[#1a2332] hover:bg-[#1a2332]/90" disabled={submitting}>
+          <Save className="mr-2 h-4 w-4" />
+          {submitting ? 'Salvataggio...' : submitLabel}
+        </Button>
+      </div>
+    </form>
+  );
 
   if (loading) return <div className="p-8 text-center">Caricamento...</div>;
 
@@ -126,7 +451,7 @@ export default function ClientiPage() {
             <Download className="mr-2 h-4 w-4" />
             Esporta CSV
           </Button>
-          <Dialog>
+          <Dialog open={showCreateDialog} onOpenChange={(open) => { setShowCreateDialog(open); if (!open) setCreateForm({ ...emptyForm }); }}>
             <DialogTrigger className="inline-flex items-center justify-center rounded-md text-sm font-medium h-8 px-3 bg-[#1a2332] text-white hover:bg-[#1a2332]/90">
               <Plus className="mr-2 h-4 w-4" />
               Nuovo Cliente
@@ -135,74 +460,7 @@ export default function ClientiPage() {
               <DialogHeader>
                 <DialogTitle>Nuovo Cliente</DialogTitle>
               </DialogHeader>
-              <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); alert('Demo: cliente creato!'); }}>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div>
-                    <Label>Ragione Sociale *</Label>
-                    <Input placeholder="Es. Azienda S.r.l." className="mt-1" required />
-                  </div>
-                  <div>
-                    <Label>Tipo</Label>
-                    <Select defaultValue="azienda">
-                      <SelectTrigger className="mt-1 w-full">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="azienda">Azienda</SelectItem>
-                        <SelectItem value="privato">Privato</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label>Partita IVA</Label>
-                    <Input placeholder="01234567890" className="mt-1" />
-                  </div>
-                  <div>
-                    <Label>Codice Fiscale</Label>
-                    <Input placeholder="Codice fiscale" className="mt-1" />
-                  </div>
-                  <div>
-                    <Label>Email *</Label>
-                    <Input type="email" placeholder="email@azienda.it" className="mt-1" required />
-                  </div>
-                  <div>
-                    <Label>Telefono</Label>
-                    <Input placeholder="+39 02 1234567" className="mt-1" />
-                  </div>
-                  <div className="sm:col-span-2">
-                    <Label>Indirizzo</Label>
-                    <Input placeholder="Via Roma 1" className="mt-1" />
-                  </div>
-                  <div>
-                    <Label>Città</Label>
-                    <Input placeholder="Milano" className="mt-1" />
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <Label>CAP</Label>
-                      <Input placeholder="20121" className="mt-1" />
-                    </div>
-                    <div>
-                      <Label>Provincia</Label>
-                      <Input placeholder="MI" maxLength={2} className="mt-1" />
-                    </div>
-                  </div>
-                  <div>
-                    <Label>PEC</Label>
-                    <Input placeholder="azienda@pec.it" className="mt-1" />
-                  </div>
-                  <div>
-                    <Label>Codice Destinatario</Label>
-                    <Input placeholder="USAL8PV" maxLength={7} className="mt-1" />
-                  </div>
-                </div>
-                <div className="flex justify-end gap-2 pt-2">
-                  <Button type="submit" className="bg-[#1a2332] hover:bg-[#1a2332]/90">
-                    <Save className="mr-2 h-4 w-4" />
-                    Salva Cliente
-                  </Button>
-                </div>
-              </form>
+              {renderForm(createForm, setCreateForm, handleCreate, 'Salva Cliente')}
             </DialogContent>
           </Dialog>
         </div>
@@ -254,7 +512,7 @@ export default function ClientiPage() {
           <CardContent className="p-3">
             <div className="flex items-center gap-3">
               <span className="text-sm font-medium">{selectedIds.size} selezionati</span>
-              <Button variant="destructive" size="sm" onClick={() => alert('Demo: azione eseguita!')}>
+              <Button variant="destructive" size="sm" onClick={handleBulkDelete} disabled={submitting}>
                 <Trash2 className="mr-2 h-4 w-4" />
                 Elimina selezionati
               </Button>
@@ -352,16 +610,16 @@ export default function ClientiPage() {
                           <MoreHorizontal className="h-4 w-4" />
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => alert('Demo: azione eseguita!')}>
+                          <DropdownMenuItem onClick={() => openEditDialog(cliente)}>
                             <Pencil className="mr-2 h-4 w-4" />
                             Modifica
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => alert('Demo: azione eseguita!')}>
+                          <DropdownMenuItem onClick={() => handleDuplicate(cliente)} disabled={submitting}>
                             <Copy className="mr-2 h-4 w-4" />
                             Duplica
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
-                          <DropdownMenuItem onClick={() => alert('Demo: azione eseguita!')} className="text-red-600">
+                          <DropdownMenuItem onClick={() => handleDelete(cliente.id)} className="text-red-600" disabled={submitting}>
                             <Trash2 className="mr-2 h-4 w-4" />
                             Elimina
                           </DropdownMenuItem>
@@ -381,6 +639,16 @@ export default function ClientiPage() {
           <Pagination currentPage={currentPage} totalItems={filteredClienti.length} pageSize={pageSize} onPageChange={setCurrentPage} onPageSizeChange={setPageSize} />
         </CardContent>
       </Card>
+
+      {/* Edit Dialog */}
+      <Dialog open={showEditDialog} onOpenChange={(open) => { setShowEditDialog(open); if (!open) setEditingCliente(null); }}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Modifica Cliente</DialogTitle>
+          </DialogHeader>
+          {renderForm(editForm, setEditForm, handleEdit, 'Aggiorna Cliente')}
+        </DialogContent>
+      </Dialog>
     </PageContainer>
   );
 }

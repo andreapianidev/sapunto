@@ -2,32 +2,61 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
-import type { UserRole } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Shield, Building2, User } from 'lucide-react';
-
-const roles: { value: UserRole; label: string; description: string; icon: React.ElementType }[] = [
-  { value: 'superadmin', label: 'Super Admin', description: 'Gestione piattaforma globale', icon: Shield },
-  { value: 'tenant_admin', label: 'Amministratore', description: 'Gestione azienda (Rossi Elettronica)', icon: Building2 },
-  { value: 'utente', label: 'Operatore', description: 'Accesso operativo limitato', icon: User },
-];
+import { AlertCircle, Loader2 } from 'lucide-react';
 
 export default function LoginPage() {
-  const [selectedRole, setSelectedRole] = useState<UserRole>('tenant_admin');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
   const { login } = useAuth();
   const router = useRouter();
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    login(selectedRole, 't-1');
-    if (selectedRole === 'superadmin') {
-      router.push('/superadmin');
+    setError('');
+    setSubmitting(true);
+
+    const result = await login(email, password);
+    if (result.ok) {
+      // Redirect based on session — fetch session to determine role
+      const sessionRes = await fetch('/api/auth/session');
+      const session = await sessionRes.json();
+      if (session.user?.ruolo === 'superadmin') {
+        router.push('/superadmin');
+      } else {
+        router.push('/dashboard');
+      }
     } else {
-      router.push('/dashboard');
+      setError(result.error || 'Errore di login');
+      setSubmitting(false);
+    }
+  };
+
+  // Quick demo login helper
+  const demoLogin = async (demoEmail: string) => {
+    setEmail(demoEmail);
+    setPassword('demo12345');
+    setError('');
+    setSubmitting(true);
+    const result = await login(demoEmail, 'demo12345');
+    if (result.ok) {
+      const sessionRes = await fetch('/api/auth/session');
+      const session = await sessionRes.json();
+      if (session.user?.ruolo === 'superadmin') {
+        router.push('/superadmin');
+      } else {
+        router.push('/dashboard');
+      }
+    } else {
+      setError(result.error || 'Errore di login');
+      setSubmitting(false);
     }
   };
 
@@ -36,9 +65,11 @@ export default function LoginPage() {
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-white text-[#1a2332] font-bold text-2xl mb-4">
-            S
-          </div>
+          <Link href="/">
+            <div className="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-white text-[#1a2332] font-bold text-2xl mb-4">
+              S
+            </div>
+          </Link>
           <h1 className="text-3xl font-bold text-white">Sapunto</h1>
           <p className="text-blue-200 mt-1">Gestionale SaaS per PMI</p>
         </div>
@@ -47,84 +78,104 @@ export default function LoginPage() {
           <CardHeader className="text-center pb-4">
             <CardTitle className="text-xl">Accedi alla piattaforma</CardTitle>
             <CardDescription>
-              Seleziona un ruolo per la demo
+              Inserisci le tue credenziali
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleLogin} className="space-y-6">
-              {/* Role Selection */}
-              <div className="space-y-3">
-                {roles.map((role) => {
-                  const Icon = role.icon;
-                  return (
-                    <button
-                      key={role.value}
-                      type="button"
-                      onClick={() => setSelectedRole(role.value)}
-                      className={`w-full flex items-center gap-3 rounded-lg border-2 p-3 text-left transition-all ${
-                        selectedRole === role.value
-                          ? 'border-[#1a2332] bg-[#1a2332]/5'
-                          : 'border-border hover:border-[#1a2332]/30'
-                      }`}
-                    >
-                      <div
-                        className={`flex h-10 w-10 items-center justify-center rounded-lg ${
-                          selectedRole === role.value
-                            ? 'bg-[#1a2332] text-white'
-                            : 'bg-muted text-muted-foreground'
-                        }`}
-                      >
-                        <Icon className="h-5 w-5" />
-                      </div>
-                      <div>
-                        <p className="font-medium text-sm">{role.label}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {role.description}
-                        </p>
-                      </div>
-                    </button>
-                  );
-                })}
+            <form onSubmit={handleLogin} className="space-y-4">
+              {error && (
+                <div className="flex items-center gap-2 rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-700">
+                  <AlertCircle className="h-4 w-4 shrink-0" />
+                  {error}
+                </div>
+              )}
+
+              <div>
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="nome@azienda.it"
+                  required
+                  className="mt-1"
+                  autoComplete="email"
+                />
               </div>
 
-              {/* Mock credentials */}
-              <div className="space-y-3">
-                <div>
-                  <Label htmlFor="email">Email</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    value={
-                      selectedRole === 'superadmin'
-                        ? 'admin@sapunto.cloud'
-                        : selectedRole === 'tenant_admin'
-                        ? 'luigi@rossielettonica.it'
-                        : 'anna@rossielettonica.it'
-                    }
-                    readOnly
-                    className="mt-1 bg-muted"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="password">Password</Label>
-                  <Input
-                    id="password"
-                    type="password"
-                    value="demo12345"
-                    readOnly
-                    className="mt-1 bg-muted"
-                  />
-                </div>
+              <div>
+                <Label htmlFor="password">Password</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="La tua password"
+                  required
+                  className="mt-1"
+                  autoComplete="current-password"
+                />
               </div>
 
-              <Button type="submit" className="w-full bg-[#1a2332] hover:bg-[#1a2332]/90 text-white">
-                Accedi
+              <Button
+                type="submit"
+                className="w-full bg-[#1a2332] hover:bg-[#1a2332]/90 text-white"
+                disabled={submitting}
+              >
+                {submitting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Accesso in corso...
+                  </>
+                ) : (
+                  'Accedi'
+                )}
               </Button>
-
-              <p className="text-center text-xs text-muted-foreground">
-                Demo — Le credenziali sono precompilate
-              </p>
             </form>
+
+            <div className="mt-4 text-center">
+              <Link href="/signup" className="text-sm text-primary hover:underline">
+                Non hai un account? Registrati gratis
+              </Link>
+            </div>
+
+            {/* Demo quick access */}
+            <div className="mt-6 pt-4 border-t">
+              <p className="text-xs text-center text-muted-foreground mb-3">Accesso rapido demo</p>
+              <div className="grid grid-cols-3 gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="text-xs"
+                  disabled={submitting}
+                  onClick={() => demoLogin('admin@sapunto.cloud')}
+                >
+                  Super Admin
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="text-xs"
+                  disabled={submitting}
+                  onClick={() => demoLogin('luigi@rossielettonica.it')}
+                >
+                  Admin
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="text-xs"
+                  disabled={submitting}
+                  onClick={() => demoLogin('anna@rossielettonica.it')}
+                >
+                  Operatore
+                </Button>
+              </div>
+            </div>
           </CardContent>
         </Card>
 
