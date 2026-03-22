@@ -17,7 +17,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import { fetchFatture, fetchClienti } from '@/lib/actions/data';
+import { fetchFatture, fetchClienti, createFattura, updateFattura, deleteFattura } from '@/lib/actions/data';
 import { useServerData } from '@/lib/hooks/use-server-data';
 import { useAuth } from '@/lib/auth-context';
 import {
@@ -34,7 +34,7 @@ import type { Fattura } from '@/lib/types';
 export default function FatturePage() {
   const { user } = useAuth();
   const tenantId = user?.tenantId || 't-1';
-  const [allData, loading] = useServerData(
+  const [allData, loading, refresh] = useServerData(
     () => Promise.all([fetchFatture(tenantId), fetchClienti(tenantId)]),
     [[], []]
   );
@@ -47,6 +47,151 @@ export default function FatturePage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [submitting, setSubmitting] = useState(false);
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+
+  // Form state for new fattura
+  const [formClienteId, setFormClienteId] = useState('');
+  const [formTipo, setFormTipo] = useState<'emessa' | 'ricevuta'>('emessa');
+  const [formData, setFormData] = useState('');
+  const [formScadenza, setFormScadenza] = useState('');
+  const [formMetodo, setFormMetodo] = useState('bonifico');
+  const [formDescrizione, setFormDescrizione] = useState('');
+  const [formImporto, setFormImporto] = useState('');
+  const [formIva, setFormIva] = useState('22');
+
+  const resetForm = () => {
+    setFormClienteId('');
+    setFormTipo('emessa');
+    setFormData('');
+    setFormScadenza('');
+    setFormMetodo('bonifico');
+    setFormDescrizione('');
+    setFormImporto('');
+    setFormIva('22');
+  };
+
+  const handleCreate = async (asBozza: boolean) => {
+    if (submitting) return;
+    const importoNum = parseFloat(formImporto);
+    if (!formClienteId || isNaN(importoNum) || importoNum <= 0) return;
+    const cliente = clienti.find((c) => c.id === formClienteId);
+    if (!cliente) return;
+
+    const ivaRate = parseInt(formIva) / 100;
+    const subtotale = importoNum;
+    const ivaAmount = subtotale * ivaRate;
+    const totale = subtotale + ivaAmount;
+
+    setSubmitting(true);
+    try {
+      const result = await createFattura({
+        tenantId,
+        tipo: formTipo,
+        clienteId: formClienteId,
+        clienteNome: cliente.ragioneSociale,
+        data: formData || new Date().toISOString().split('T')[0],
+        dataScadenza: formScadenza || new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
+        stato: 'non_pagata',
+        statoSDI: asBozza ? 'bozza' : 'inviata',
+        righe: [{
+          prodottoId: '',
+          nome: formDescrizione || 'Vendita prodotti',
+          quantita: 1,
+          prezzoUnitario: subtotale,
+          iva: parseInt(formIva),
+          totale: totale,
+        }],
+        subtotale: String(subtotale),
+        iva: String(ivaAmount),
+        totale: String(totale),
+      });
+      if (result.ok) {
+        setCreateDialogOpen(false);
+        resetForm();
+        refresh();
+      } else {
+        alert(result.error || 'Errore nella creazione della fattura');
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (submitting) return;
+    if (!confirm('Sei sicuro di voler eliminare questa fattura?')) return;
+    setSubmitting(true);
+    try {
+      const result = await deleteFattura(id);
+      if (result.ok) {
+        refresh();
+      } else {
+        alert(result.error || 'Errore nella cancellazione');
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDeleteSelected = async () => {
+    if (submitting) return;
+    if (!confirm(`Sei sicuro di voler eliminare ${selectedIds.size} fatture?`)) return;
+    setSubmitting(true);
+    try {
+      const ids = Array.from(selectedIds);
+      for (const id of ids) {
+        await deleteFattura(id);
+      }
+      setSelectedIds(new Set());
+      refresh();
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDuplicate = async (fattura: Fattura) => {
+    if (submitting) return;
+    setSubmitting(true);
+    try {
+      const result = await createFattura({
+        tenantId,
+        tipo: fattura.tipo,
+        clienteId: fattura.clienteId,
+        clienteNome: fattura.clienteNome,
+        data: new Date().toISOString().split('T')[0],
+        dataScadenza: new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
+        stato: 'non_pagata',
+        statoSDI: 'bozza',
+        righe: fattura.righe,
+        subtotale: String(fattura.subtotale),
+        iva: String(fattura.iva),
+        totale: String(fattura.totale),
+      });
+      if (result.ok) {
+        refresh();
+      } else {
+        alert(result.error || 'Errore nella duplicazione');
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleStatusChange = async (id: string, statoSDI: string) => {
+    if (submitting) return;
+    setSubmitting(true);
+    try {
+      const result = await updateFattura(id, { statoSDI });
+      if (result.ok) {
+        refresh();
+      } else {
+        alert(result.error || 'Errore nell\'aggiornamento');
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   const toggleSelect = (id: string) => {
     setSelectedIds((prev) => {
@@ -105,7 +250,7 @@ export default function FatturePage() {
           <Download className="mr-2 h-4 w-4" />
           Esporta
         </Button>
-        <Dialog>
+        <Dialog open={createDialogOpen} onOpenChange={(open) => { setCreateDialogOpen(open); if (!open) resetForm(); }}>
           <DialogTrigger className="inline-flex items-center justify-center rounded-md text-sm font-medium h-8 px-3 bg-[#1a2332] text-white hover:bg-[#1a2332]/90">
             <Plus className="mr-2 h-4 w-4" />
             Nuova Fattura
@@ -114,13 +259,13 @@ export default function FatturePage() {
             <DialogHeader>
               <DialogTitle>Nuova Fattura Elettronica</DialogTitle>
             </DialogHeader>
-            <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); alert('Demo: fattura creata e inviata a SDI!'); }}>
+            <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); }}>
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="sm:col-span-2">
                   <Label>Cliente *</Label>
-                  <Select defaultValue="c-1">
+                  <Select value={formClienteId} onValueChange={(v) => v && setFormClienteId(v)}>
                     <SelectTrigger className="mt-1 w-full">
-                      <SelectValue />
+                      <SelectValue placeholder="Seleziona cliente" />
                     </SelectTrigger>
                     <SelectContent>
                       {clienti.filter((c) => c.tipo === 'azienda').slice(0, 10).map((c) => (
@@ -131,7 +276,7 @@ export default function FatturePage() {
                 </div>
                 <div>
                   <Label>Tipo Fattura</Label>
-                  <Select defaultValue="emessa">
+                  <Select value={formTipo} onValueChange={(v) => v && setFormTipo(v as 'emessa' | 'ricevuta')}>
                     <SelectTrigger className="mt-1 w-full">
                       <SelectValue />
                     </SelectTrigger>
@@ -143,15 +288,15 @@ export default function FatturePage() {
                 </div>
                 <div>
                   <Label>Data Emissione</Label>
-                  <Input type="date" defaultValue="2026-03-18" className="mt-1" />
+                  <Input type="date" value={formData} onChange={(e) => setFormData(e.target.value)} className="mt-1" />
                 </div>
                 <div>
                   <Label>Scadenza Pagamento</Label>
-                  <Input type="date" defaultValue="2026-04-17" className="mt-1" />
+                  <Input type="date" value={formScadenza} onChange={(e) => setFormScadenza(e.target.value)} className="mt-1" />
                 </div>
                 <div>
                   <Label>Metodo Pagamento</Label>
-                  <Select defaultValue="bonifico">
+                  <Select value={formMetodo} onValueChange={(v) => v && setFormMetodo(v)}>
                     <SelectTrigger className="mt-1 w-full">
                       <SelectValue />
                     </SelectTrigger>
@@ -165,15 +310,15 @@ export default function FatturePage() {
                 </div>
                 <div>
                   <Label>Descrizione</Label>
-                  <Input placeholder="Vendita prodotti" className="mt-1" />
+                  <Input placeholder="Vendita prodotti" value={formDescrizione} onChange={(e) => setFormDescrizione(e.target.value)} className="mt-1" />
                 </div>
                 <div>
                   <Label>Importo (IVA esclusa) *</Label>
-                  <Input type="number" step="0.01" placeholder="0,00" className="mt-1" required />
+                  <Input type="number" step="0.01" placeholder="0,00" value={formImporto} onChange={(e) => setFormImporto(e.target.value)} className="mt-1" required />
                 </div>
                 <div>
                   <Label>Aliquota IVA</Label>
-                  <Select defaultValue="22">
+                  <Select value={formIva} onValueChange={(v) => v && setFormIva(v)}>
                     <SelectTrigger className="mt-1 w-full">
                       <SelectValue />
                     </SelectTrigger>
@@ -187,12 +332,12 @@ export default function FatturePage() {
                 </div>
               </div>
               <div className="flex justify-end gap-2 pt-2">
-                <Button type="submit" variant="outline">
-                  Salva Bozza
+                <Button type="button" variant="outline" disabled={submitting} onClick={() => handleCreate(true)}>
+                  {submitting ? 'Salvataggio...' : 'Salva Bozza'}
                 </Button>
-                <Button type="submit" className="bg-[#1a2332] hover:bg-[#1a2332]/90">
+                <Button type="button" className="bg-[#1a2332] hover:bg-[#1a2332]/90" disabled={submitting} onClick={() => handleCreate(false)}>
                   <Send className="mr-2 h-4 w-4" />
-                  Crea e Invia a SDI
+                  {submitting ? 'Invio...' : 'Crea e Invia a SDI'}
                 </Button>
               </div>
             </form>
@@ -303,8 +448,8 @@ export default function FatturePage() {
         <Card>
           <CardContent className="p-3 flex items-center gap-3">
             <span className="text-sm font-medium">{selectedIds.size} selezionati</span>
-            <Button variant="destructive" size="sm" onClick={() => alert('Demo: azione eseguita!')}>
-              <Trash2 className="mr-2 h-4 w-4" />Elimina selezionati
+            <Button variant="destructive" size="sm" disabled={submitting} onClick={handleDeleteSelected}>
+              <Trash2 className="mr-2 h-4 w-4" />{submitting ? 'Eliminazione...' : 'Elimina selezionati'}
             </Button>
             <Button variant="outline" size="sm" onClick={() => exportCSV(filtered.filter((f) => selectedIds.has(f.id)))}>
               <Download className="mr-2 h-4 w-4" />Esporta selezionati
@@ -448,17 +593,17 @@ export default function FatturePage() {
                         <MoreHorizontal className="h-4 w-4" />
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => alert('Demo: azione eseguita!')}>
+                        <DropdownMenuItem disabled={submitting} onClick={() => handleStatusChange(fattura.id, 'inviata')}>
                           <Pencil className="mr-2 h-4 w-4" />Modifica
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => alert('Demo: azione eseguita!')}>
+                        <DropdownMenuItem disabled={submitting} onClick={() => handleDuplicate(fattura as Fattura)}>
                           <Copy className="mr-2 h-4 w-4" />Duplica
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => alert('Demo: azione eseguita!')}>
+                        <DropdownMenuItem onClick={() => window.print()}>
                           <Printer className="mr-2 h-4 w-4" />Stampa
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={() => alert('Demo: azione eseguita!')} className="text-red-600">
+                        <DropdownMenuItem disabled={submitting} onClick={() => handleDelete(fattura.id)} className="text-red-600">
                           <Trash2 className="mr-2 h-4 w-4" />Elimina
                         </DropdownMenuItem>
                       </DropdownMenuContent>

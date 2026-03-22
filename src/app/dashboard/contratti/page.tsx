@@ -17,7 +17,7 @@ import {
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Pagination } from '@/components/ui/pagination';
-import { fetchContratti, fetchClienti } from '@/lib/actions/data';
+import { fetchContratti, fetchClienti, createContratto, updateContratto, deleteContratto } from '@/lib/actions/data';
 import { useServerData } from '@/lib/hooks/use-server-data';
 import { useAuth } from '@/lib/auth-context';
 import { formatCurrency, formatDate } from '@/lib/utils';
@@ -35,7 +35,7 @@ const statoBadge: Record<string, string> = {
 export default function ContrattiPage() {
   const { user } = useAuth();
   const tenantId = user?.tenantId || 't-1';
-  const [allData, loading] = useServerData(
+  const [allData, loading, refresh] = useServerData(
     () => Promise.all([fetchContratti(tenantId), fetchClienti(tenantId)]),
     [[], []]
   );
@@ -48,6 +48,25 @@ export default function ContrattiPage() {
   const [detailItem, setDetailItem] = useState<typeof contratti[number] | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [submitting, setSubmitting] = useState(false);
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+
+  // Create form state
+  const [formClienteId, setFormClienteId] = useState('c-1');
+  const [formOggetto, setFormOggetto] = useState('');
+  const [formTipo, setFormTipo] = useState<'servizio' | 'fornitura' | 'manutenzione' | 'consulenza'>('servizio');
+  const [formValoreAnnuale, setFormValoreAnnuale] = useState('');
+  const [formDataInizio, setFormDataInizio] = useState('');
+  const [formDataFine, setFormDataFine] = useState('');
+
+  // Edit state
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editItem, setEditItem] = useState<typeof contratti[number] | null>(null);
+  const [editOggetto, setEditOggetto] = useState('');
+  const [editStato, setEditStato] = useState('');
+  const [editTipo, setEditTipo] = useState('');
+  const [editRinnovo, setEditRinnovo] = useState('');
+  const [editNote, setEditNote] = useState('');
 
   const filtered = useMemo(() => {
     return contratti.filter((c) => {
@@ -103,6 +122,118 @@ export default function ContrattiPage() {
     setCurrentPage(1);
   };
 
+  const exportCSV = (rows: typeof contratti) => {
+    const header = 'Numero,Cliente,Oggetto,Tipo,Stato,Data Inizio,Data Fine,Valore Annuale,Rinnovo';
+    const csv = [header, ...rows.map((c) => `${c.numero},${c.clienteNome},${c.oggetto},${c.tipo},${c.stato},${c.dataInizio},${c.dataFine},${c.valoreAnnuale},${c.rinnovo}`)].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'contratti.csv'; a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const resetCreateForm = () => {
+    setFormClienteId('c-1');
+    setFormOggetto('');
+    setFormTipo('servizio');
+    setFormValoreAnnuale('');
+    setFormDataInizio('');
+    setFormDataFine('');
+  };
+
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    const cliente = clienti.find((c) => c.id === formClienteId);
+    const res = await createContratto({
+      tenantId,
+      clienteId: formClienteId,
+      clienteNome: cliente?.ragioneSociale || '',
+      oggetto: formOggetto,
+      tipo: formTipo,
+      stato: 'bozza',
+      dataInizio: formDataInizio,
+      dataFine: formDataFine,
+      valoreAnnuale: formValoreAnnuale || '0',
+      rinnovo: 'manuale',
+      note: undefined,
+    });
+    setSubmitting(false);
+    if (res.ok) {
+      setCreateDialogOpen(false);
+      resetCreateForm();
+      refresh();
+    } else {
+      alert(res.error || 'Errore nella creazione del contratto');
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Sei sicuro di voler eliminare questo contratto?')) return;
+    setSubmitting(true);
+    const res = await deleteContratto(id);
+    setSubmitting(false);
+    if (res.ok) {
+      refresh();
+    } else {
+      alert(res.error || 'Errore nella cancellazione');
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (!confirm(`Sei sicuro di voler eliminare ${selectedIds.size} contratti?`)) return;
+    setSubmitting(true);
+    const ids = Array.from(selectedIds);
+    for (const id of ids) {
+      await deleteContratto(id);
+    }
+    setSubmitting(false);
+    setSelectedIds(new Set());
+    refresh();
+  };
+
+  const openEdit = (c: typeof contratti[number]) => {
+    setEditItem(c);
+    setEditOggetto(c.oggetto);
+    setEditStato(c.stato);
+    setEditTipo(c.tipo);
+    setEditRinnovo(c.rinnovo);
+    setEditNote((c as Record<string, unknown>).note as string || '');
+    setEditDialogOpen(true);
+  };
+
+  const handleUpdate = async () => {
+    if (!editItem) return;
+    setSubmitting(true);
+    const res = await updateContratto(editItem.id, {
+      oggetto: editOggetto,
+      stato: editStato,
+      tipo: editTipo,
+      rinnovo: editRinnovo,
+      note: editNote || undefined,
+    });
+    setSubmitting(false);
+    if (res.ok) {
+      setEditDialogOpen(false);
+      setEditItem(null);
+      refresh();
+    } else {
+      alert(res.error || 'Errore nella modifica');
+    }
+  };
+
+  const handleRinnova = async (c: typeof contratti[number]) => {
+    if (!confirm(`Rinnovare il contratto ${c.numero}?`)) return;
+    setSubmitting(true);
+    const res = await updateContratto(c.id, { stato: 'rinnovato' });
+    setSubmitting(false);
+    if (res.ok) {
+      refresh();
+    } else {
+      alert(res.error || 'Errore nel rinnovo');
+    }
+  };
+
   if (loading) return <div className="p-8 text-center">Caricamento...</div>;
 
   return (
@@ -111,27 +242,27 @@ export default function ContrattiPage() {
       description="Gestione contratti clienti"
       actions={
         <div className="flex items-center gap-2">
-        <Button variant="outline" size="sm" onClick={() => alert('Demo: azione eseguita!')}><Download className="mr-2 h-4 w-4" />Export CSV</Button>
-        <Dialog>
+        <Button variant="outline" size="sm" onClick={() => exportCSV(filtered)}><Download className="mr-2 h-4 w-4" />Export CSV</Button>
+        <Dialog open={createDialogOpen} onOpenChange={(open) => { setCreateDialogOpen(open); if (!open) resetCreateForm(); }}>
           <DialogTrigger className="inline-flex items-center justify-center rounded-md text-sm font-medium h-8 px-3 bg-[#1a2332] text-white hover:bg-[#1a2332]/90">
             <Plus className="mr-2 h-4 w-4" />
             Nuovo Contratto
           </DialogTrigger>
           <DialogContent className="sm:max-w-lg">
             <DialogHeader><DialogTitle>Nuovo Contratto</DialogTitle></DialogHeader>
-            <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); alert('Demo: contratto creato!'); }}>
+            <form className="space-y-4" onSubmit={handleCreate}>
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="sm:col-span-2">
                   <Label>Cliente *</Label>
-                  <Select defaultValue="c-1">
+                  <Select value={formClienteId} onValueChange={(v) => v && setFormClienteId(v)}>
                     <SelectTrigger className="mt-1 w-full"><SelectValue /></SelectTrigger>
                     <SelectContent>{clienti.slice(0, 10).map((c) => (<SelectItem key={c.id} value={c.id}>{c.ragioneSociale}</SelectItem>))}</SelectContent>
                   </Select>
                 </div>
-                <div className="sm:col-span-2"><Label>Oggetto *</Label><Input placeholder="Descrizione contratto" className="mt-1" required /></div>
+                <div className="sm:col-span-2"><Label>Oggetto *</Label><Input placeholder="Descrizione contratto" className="mt-1" required value={formOggetto} onChange={(e) => setFormOggetto(e.target.value)} /></div>
                 <div>
                   <Label>Tipo</Label>
-                  <Select defaultValue="servizio">
+                  <Select value={formTipo} onValueChange={(v) => v && setFormTipo(v as typeof formTipo)}>
                     <SelectTrigger className="mt-1 w-full"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="servizio">Servizio</SelectItem>
@@ -141,11 +272,11 @@ export default function ContrattiPage() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div><Label>Valore Annuale</Label><Input type="number" step="0.01" placeholder="0,00" className="mt-1" /></div>
-                <div><Label>Data Inizio</Label><Input type="date" className="mt-1" /></div>
-                <div><Label>Data Fine</Label><Input type="date" className="mt-1" /></div>
+                <div><Label>Valore Annuale</Label><Input type="number" step="0.01" placeholder="0,00" className="mt-1" value={formValoreAnnuale} onChange={(e) => setFormValoreAnnuale(e.target.value)} /></div>
+                <div><Label>Data Inizio</Label><Input type="date" className="mt-1" value={formDataInizio} onChange={(e) => setFormDataInizio(e.target.value)} /></div>
+                <div><Label>Data Fine</Label><Input type="date" className="mt-1" value={formDataFine} onChange={(e) => setFormDataFine(e.target.value)} /></div>
               </div>
-              <div className="flex justify-end"><Button type="submit" className="bg-[#1a2332] hover:bg-[#1a2332]/90"><Save className="mr-2 h-4 w-4" />Salva</Button></div>
+              <div className="flex justify-end"><Button type="submit" className="bg-[#1a2332] hover:bg-[#1a2332]/90" disabled={submitting}><Save className="mr-2 h-4 w-4" />{submitting ? 'Salvataggio...' : 'Salva'}</Button></div>
             </form>
           </DialogContent>
         </Dialog>
@@ -167,11 +298,11 @@ export default function ContrattiPage() {
           <CardContent className="p-3 flex items-center justify-between">
             <p className="text-sm font-medium">{selectedIds.size} element{selectedIds.size > 1 ? 'i' : 'o'} selezionat{selectedIds.size > 1 ? 'i' : 'o'}</p>
             <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={() => alert('Demo: esportazione selezionati!')}>
+              <Button variant="outline" size="sm" onClick={() => exportCSV(filtered.filter((c) => selectedIds.has(c.id)))}>
                 <Download className="mr-2 h-4 w-4" />Esporta selezionati
               </Button>
-              <Button variant="destructive" size="sm" onClick={() => alert('Demo: eliminazione selezionati!')}>
-                <Trash2 className="mr-2 h-4 w-4" />Elimina selezionati
+              <Button variant="destructive" size="sm" disabled={submitting} onClick={handleBulkDelete}>
+                <Trash2 className="mr-2 h-4 w-4" />{submitting ? 'Eliminazione...' : 'Elimina selezionati'}
               </Button>
             </div>
           </CardContent>
@@ -217,7 +348,7 @@ export default function ContrattiPage() {
                   >
                     <Eye className="h-4 w-4" />
                   </button>
-                  <DropdownMenu><DropdownMenuTrigger className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground h-8 w-8 p-0"><MoreHorizontal className="h-4 w-4" /></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem onClick={() => alert('Demo: azione eseguita!')}><Pencil className="mr-2 h-4 w-4" />Modifica</DropdownMenuItem><DropdownMenuItem onClick={() => alert('Demo: azione eseguita!')}><RefreshCw className="mr-2 h-4 w-4" />Rinnova</DropdownMenuItem><DropdownMenuSeparator /><DropdownMenuItem onClick={() => alert('Demo: azione eseguita!')} className="text-red-600"><Trash2 className="mr-2 h-4 w-4" />Elimina</DropdownMenuItem></DropdownMenuContent></DropdownMenu>
+                  <DropdownMenu><DropdownMenuTrigger className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground h-8 w-8 p-0"><MoreHorizontal className="h-4 w-4" /></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem onClick={() => openEdit(c)}><Pencil className="mr-2 h-4 w-4" />Modifica</DropdownMenuItem><DropdownMenuItem onClick={() => handleRinnova(c)}><RefreshCw className="mr-2 h-4 w-4" />Rinnova</DropdownMenuItem><DropdownMenuSeparator /><DropdownMenuItem onClick={() => handleDelete(c.id)} className="text-red-600"><Trash2 className="mr-2 h-4 w-4" />Elimina</DropdownMenuItem></DropdownMenuContent></DropdownMenu>
                 </div>
               </TableCell>
             </TableRow>
@@ -283,6 +414,72 @@ export default function ContrattiPage() {
                 </div>
               )}
             </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={(open) => { if (!open) { setEditDialogOpen(false); setEditItem(null); } }}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader><DialogTitle>Modifica Contratto</DialogTitle></DialogHeader>
+          {editItem && (
+            <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); handleUpdate(); }}>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="sm:col-span-2">
+                  <Label>Cliente</Label>
+                  <Input className="mt-1" value={editItem.clienteNome} disabled />
+                </div>
+                <div className="sm:col-span-2">
+                  <Label>Oggetto *</Label>
+                  <Input className="mt-1" required value={editOggetto} onChange={(e) => setEditOggetto(e.target.value)} />
+                </div>
+                <div>
+                  <Label>Tipo</Label>
+                  <Select value={editTipo} onValueChange={(v) => v && setEditTipo(v)}>
+                    <SelectTrigger className="mt-1 w-full"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="servizio">Servizio</SelectItem>
+                      <SelectItem value="fornitura">Fornitura</SelectItem>
+                      <SelectItem value="manutenzione">Manutenzione</SelectItem>
+                      <SelectItem value="consulenza">Consulenza</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Stato</Label>
+                  <Select value={editStato} onValueChange={(v) => v && setEditStato(v)}>
+                    <SelectTrigger className="mt-1 w-full"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="bozza">Bozza</SelectItem>
+                      <SelectItem value="attivo">Attivo</SelectItem>
+                      <SelectItem value="scaduto">Scaduto</SelectItem>
+                      <SelectItem value="rinnovato">Rinnovato</SelectItem>
+                      <SelectItem value="rescisso">Rescisso</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Rinnovo</Label>
+                  <Select value={editRinnovo} onValueChange={(v) => v && setEditRinnovo(v)}>
+                    <SelectTrigger className="mt-1 w-full"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="automatico">Automatico</SelectItem>
+                      <SelectItem value="manuale">Manuale</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="sm:col-span-2">
+                  <Label>Note</Label>
+                  <Input className="mt-1" placeholder="Note aggiuntive..." value={editNote} onChange={(e) => setEditNote(e.target.value)} />
+                </div>
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button type="button" variant="outline" onClick={() => { setEditDialogOpen(false); setEditItem(null); }}>Annulla</Button>
+                <Button type="submit" className="bg-[#1a2332] hover:bg-[#1a2332]/90" disabled={submitting}>
+                  <Save className="mr-2 h-4 w-4" />{submitting ? 'Salvataggio...' : 'Salva Modifiche'}
+                </Button>
+              </div>
+            </form>
           )}
         </DialogContent>
       </Dialog>

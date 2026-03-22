@@ -13,7 +13,7 @@ import { Label } from '@/components/ui/label';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { fetchPreventivi, fetchClienti } from '@/lib/actions/data';
+import { fetchPreventivi, fetchClienti, createPreventivo, updatePreventivo, deletePreventivo } from '@/lib/actions/data';
 import { useServerData } from '@/lib/hooks/use-server-data';
 import { useAuth } from '@/lib/auth-context';
 import { formatCurrency, formatDate } from '@/lib/utils';
@@ -25,7 +25,7 @@ const statoBadge: Record<string, string> = { bozza: 'bg-gray-100 text-gray-800',
 export default function PreventiviPage() {
   const { user } = useAuth();
   const tenantId = user?.tenantId || 't-1';
-  const [allData, loading] = useServerData(
+  const [allData, loading, refresh] = useServerData(
     () => Promise.all([fetchPreventivi(tenantId), fetchClienti(tenantId)]),
     [[], []]
   );
@@ -37,6 +37,22 @@ export default function PreventiviPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [submitting, setSubmitting] = useState(false);
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+
+  // Form state for new preventivo
+  const [formClienteId, setFormClienteId] = useState('c-1');
+  const [formOggetto, setFormOggetto] = useState('');
+  const [formData, setFormData] = useState('2026-03-22');
+  const [formScadenza, setFormScadenza] = useState('2026-04-22');
+  const [formNote, setFormNote] = useState('');
+
+  // Edit state
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editItem, setEditItem] = useState<typeof preventivi[number] | null>(null);
+  const [editOggetto, setEditOggetto] = useState('');
+  const [editNote, setEditNote] = useState('');
+  const [editStato, setEditStato] = useState('');
 
   const filtered = useMemo(() => preventivi.filter((p) => {
     const matchSearch = p.clienteNome.toLowerCase().includes(searchTerm.toLowerCase()) || p.oggetto.toLowerCase().includes(searchTerm.toLowerCase());
@@ -72,6 +88,115 @@ export default function PreventiviPage() {
     URL.revokeObjectURL(url);
   };
 
+  const resetCreateForm = () => {
+    setFormClienteId('c-1');
+    setFormOggetto('');
+    setFormData('2026-03-22');
+    setFormScadenza('2026-04-22');
+    setFormNote('');
+  };
+
+  const handleCreate = async (stato: 'bozza' | 'inviato') => {
+    setSubmitting(true);
+    const cliente = clienti.find((c) => c.id === formClienteId);
+    const res = await createPreventivo({
+      tenantId,
+      clienteId: formClienteId,
+      clienteNome: cliente?.ragioneSociale || '',
+      data: formData,
+      dataScadenza: formScadenza,
+      stato,
+      oggetto: formOggetto,
+      righe: [],
+      subtotale: '0',
+      iva: '0',
+      totale: '0',
+      note: formNote || undefined,
+    });
+    setSubmitting(false);
+    if (res.ok) {
+      setCreateDialogOpen(false);
+      resetCreateForm();
+      refresh();
+    } else {
+      alert(res.error || 'Errore nella creazione del preventivo');
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Sei sicuro di voler eliminare questo preventivo?')) return;
+    setSubmitting(true);
+    const res = await deletePreventivo(id);
+    setSubmitting(false);
+    if (res.ok) {
+      refresh();
+    } else {
+      alert(res.error || 'Errore nella cancellazione');
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (!confirm(`Sei sicuro di voler eliminare ${selectedIds.size} preventivi?`)) return;
+    setSubmitting(true);
+    const ids = Array.from(selectedIds);
+    for (const id of ids) {
+      await deletePreventivo(id);
+    }
+    setSubmitting(false);
+    setSelectedIds(new Set());
+    refresh();
+  };
+
+  const openEdit = (p: typeof preventivi[number]) => {
+    setEditItem(p);
+    setEditOggetto(p.oggetto);
+    setEditNote((p as Record<string, unknown>).note as string || '');
+    setEditStato(p.stato);
+    setEditDialogOpen(true);
+  };
+
+  const handleUpdate = async () => {
+    if (!editItem) return;
+    setSubmitting(true);
+    const res = await updatePreventivo(editItem.id, {
+      oggetto: editOggetto,
+      stato: editStato,
+      note: editNote || undefined,
+    });
+    setSubmitting(false);
+    if (res.ok) {
+      setEditDialogOpen(false);
+      setEditItem(null);
+      refresh();
+    } else {
+      alert(res.error || 'Errore nella modifica');
+    }
+  };
+
+  const handleDuplicate = async (p: typeof preventivi[number]) => {
+    setSubmitting(true);
+    const res = await createPreventivo({
+      tenantId,
+      clienteId: p.clienteId,
+      clienteNome: p.clienteNome,
+      data: new Date().toISOString().split('T')[0],
+      dataScadenza: p.dataScadenza,
+      stato: 'bozza',
+      oggetto: p.oggetto + ' (copia)',
+      righe: [],
+      subtotale: String(p.subtotale ?? 0),
+      iva: String(p.iva ?? 0),
+      totale: String(p.totale ?? 0),
+      note: (p as Record<string, unknown>).note as string | undefined,
+    });
+    setSubmitting(false);
+    if (res.ok) {
+      refresh();
+    } else {
+      alert(res.error || 'Errore nella duplicazione');
+    }
+  };
+
   if (loading) return <div className="p-8 text-center">Caricamento...</div>;
 
   return (
@@ -80,19 +205,19 @@ export default function PreventiviPage() {
         <Button variant="outline" size="sm" onClick={() => exportCSV(filtered)}>
           <Download className="mr-2 h-4 w-4" />Esporta
         </Button>
-        <Dialog>
+        <Dialog open={createDialogOpen} onOpenChange={(open) => { setCreateDialogOpen(open); if (!open) resetCreateForm(); }}>
           <DialogTrigger className="inline-flex items-center justify-center rounded-md text-sm font-medium h-8 px-3 bg-[#1a2332] text-white hover:bg-[#1a2332]/90"><Plus className="mr-2 h-4 w-4" />Nuovo Preventivo</DialogTrigger>
           <DialogContent className="sm:max-w-lg">
             <DialogHeader><DialogTitle>Nuovo Preventivo</DialogTitle></DialogHeader>
-            <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); alert('Demo: preventivo creato!'); }}>
+            <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); handleCreate('bozza'); }}>
               <div className="grid gap-3 sm:grid-cols-2">
-                <div className="sm:col-span-2"><Label>Cliente *</Label><Select defaultValue="c-1"><SelectTrigger className="mt-1 w-full"><SelectValue /></SelectTrigger><SelectContent>{clienti.slice(0, 10).map((c) => (<SelectItem key={c.id} value={c.id}>{c.ragioneSociale}</SelectItem>))}</SelectContent></Select></div>
-                <div className="sm:col-span-2"><Label>Oggetto *</Label><Input placeholder="Es. Fornitura sistema domotica" className="mt-1" required /></div>
-                <div><Label>Data</Label><Input type="date" defaultValue="2026-03-18" className="mt-1" /></div>
-                <div><Label>Validità fino al</Label><Input type="date" defaultValue="2026-04-18" className="mt-1" /></div>
-                <div className="sm:col-span-2"><Label>Note</Label><Input placeholder="Note aggiuntive..." className="mt-1" /></div>
+                <div className="sm:col-span-2"><Label>Cliente *</Label><Select value={formClienteId} onValueChange={(v) => v && setFormClienteId(v)}><SelectTrigger className="mt-1 w-full"><SelectValue /></SelectTrigger><SelectContent>{clienti.slice(0, 10).map((c) => (<SelectItem key={c.id} value={c.id}>{c.ragioneSociale}</SelectItem>))}</SelectContent></Select></div>
+                <div className="sm:col-span-2"><Label>Oggetto *</Label><Input placeholder="Es. Fornitura sistema domotica" className="mt-1" required value={formOggetto} onChange={(e) => setFormOggetto(e.target.value)} /></div>
+                <div><Label>Data</Label><Input type="date" value={formData} onChange={(e) => setFormData(e.target.value)} className="mt-1" /></div>
+                <div><Label>Validità fino al</Label><Input type="date" value={formScadenza} onChange={(e) => setFormScadenza(e.target.value)} className="mt-1" /></div>
+                <div className="sm:col-span-2"><Label>Note</Label><Input placeholder="Note aggiuntive..." className="mt-1" value={formNote} onChange={(e) => setFormNote(e.target.value)} /></div>
               </div>
-              <div className="flex justify-end gap-2"><Button type="submit" variant="outline">Salva Bozza</Button><Button type="submit" className="bg-[#1a2332] hover:bg-[#1a2332]/90"><Send className="mr-2 h-4 w-4" />Invia al Cliente</Button></div>
+              <div className="flex justify-end gap-2"><Button type="submit" variant="outline" disabled={submitting}>{submitting ? 'Salvataggio...' : 'Salva Bozza'}</Button><Button type="button" className="bg-[#1a2332] hover:bg-[#1a2332]/90" disabled={submitting} onClick={() => handleCreate('inviato')}><Send className="mr-2 h-4 w-4" />{submitting ? 'Invio...' : 'Invia al Cliente'}</Button></div>
             </form>
           </DialogContent>
         </Dialog>
@@ -112,8 +237,8 @@ export default function PreventiviPage() {
         <Card>
           <CardContent className="p-3 flex items-center gap-3">
             <span className="text-sm font-medium">{selectedIds.size} selezionati</span>
-            <Button variant="destructive" size="sm" onClick={() => alert('Demo: azione eseguita!')}>
-              <Trash2 className="mr-2 h-4 w-4" />Elimina selezionati
+            <Button variant="destructive" size="sm" disabled={submitting} onClick={handleBulkDelete}>
+              <Trash2 className="mr-2 h-4 w-4" />{submitting ? 'Eliminazione...' : 'Elimina selezionati'}
             </Button>
             <Button variant="outline" size="sm" onClick={() => exportCSV(filtered.filter((p) => selectedIds.has(p.id)))}>
               <Download className="mr-2 h-4 w-4" />Esporta selezionati
@@ -148,14 +273,14 @@ export default function PreventiviPage() {
                 <MoreHorizontal className="h-4 w-4" />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => alert('Demo: azione eseguita!')}>
+                <DropdownMenuItem onClick={() => openEdit(p)}>
                   <Pencil className="mr-2 h-4 w-4" />Modifica
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => alert('Demo: azione eseguita!')}>
+                <DropdownMenuItem onClick={() => handleDuplicate(p)}>
                   <Copy className="mr-2 h-4 w-4" />Duplica
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => alert('Demo: azione eseguita!')} className="text-red-600">
+                <DropdownMenuItem onClick={() => handleDelete(p.id)} className="text-red-600">
                   <Trash2 className="mr-2 h-4 w-4" />Elimina
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -163,6 +288,50 @@ export default function PreventiviPage() {
           </TableCell>
         </TableRow>
       ))}</TableBody></Table><Pagination currentPage={currentPage} totalItems={filtered.length} pageSize={pageSize} onPageChange={setCurrentPage} onPageSizeChange={setPageSize} /></CardContent></Card>
+
+      {/* Edit Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={(open) => { if (!open) { setEditDialogOpen(false); setEditItem(null); } }}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader><DialogTitle>Modifica Preventivo</DialogTitle></DialogHeader>
+          {editItem && (
+            <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); handleUpdate(); }}>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="sm:col-span-2">
+                  <Label>Cliente</Label>
+                  <Input className="mt-1" value={editItem.clienteNome} disabled />
+                </div>
+                <div className="sm:col-span-2">
+                  <Label>Oggetto *</Label>
+                  <Input className="mt-1" required value={editOggetto} onChange={(e) => setEditOggetto(e.target.value)} />
+                </div>
+                <div>
+                  <Label>Stato</Label>
+                  <Select value={editStato} onValueChange={(v) => v && setEditStato(v)}>
+                    <SelectTrigger className="mt-1 w-full"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="bozza">Bozza</SelectItem>
+                      <SelectItem value="inviato">Inviato</SelectItem>
+                      <SelectItem value="accettato">Accettato</SelectItem>
+                      <SelectItem value="rifiutato">Rifiutato</SelectItem>
+                      <SelectItem value="scaduto">Scaduto</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="sm:col-span-2">
+                  <Label>Note</Label>
+                  <Input className="mt-1" placeholder="Note aggiuntive..." value={editNote} onChange={(e) => setEditNote(e.target.value)} />
+                </div>
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button type="button" variant="outline" onClick={() => { setEditDialogOpen(false); setEditItem(null); }}>Annulla</Button>
+                <Button type="submit" className="bg-[#1a2332] hover:bg-[#1a2332]/90" disabled={submitting}>
+                  <Save className="mr-2 h-4 w-4" />{submitting ? 'Salvataggio...' : 'Salva Modifiche'}
+                </Button>
+              </div>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
     </PageContainer>
   );
 }

@@ -20,17 +20,16 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Pagination } from '@/components/ui/pagination';
-import { fetchTenants, fetchPiani } from '@/lib/actions/data';
+import { fetchTenants, fetchPiani, updateTenantAdmin } from '@/lib/actions/data';
 import { useServerData } from '@/lib/hooks/use-server-data';
 import { useAuth } from '@/lib/auth-context';
 import { formatDate, formatCurrency, formatPIVA } from '@/lib/utils';
-import { Plus, MoreHorizontal, Pause, Edit, Trash2, Search, Eye, Save, Building2, Users, DollarSign } from 'lucide-react';
+import { Plus, MoreHorizontal, Pause, Edit, Trash2, Search, Eye, Save, Building2, Users, DollarSign, Loader2 } from 'lucide-react';
 import type { Tenant } from '@/lib/types';
 
 export default function TenantPage() {
   const { user } = useAuth();
-  const tenantId = user?.tenantId || 't-1';
-  const [allData, loading] = useServerData(
+  const [allData, loading, refresh] = useServerData(
     () => Promise.all([fetchTenants(), fetchPiani()]),
     [[], []]
   );
@@ -43,6 +42,7 @@ export default function TenantPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [detailTenant, setDetailTenant] = useState<Tenant | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   const filtered = useMemo(() => {
     return tenants.filter((t) => {
@@ -51,12 +51,30 @@ export default function TenantPage() {
       const matchStato = filterStato === 'tutti' || t.stato === filterStato;
       return matchSearch && matchPiano && matchStato;
     });
-  }, [searchTerm, filterPiano, filterStato]);
+  }, [searchTerm, filterPiano, filterStato, tenants]);
 
   const mrrTotale = tenants.reduce((s, t) => {
     const piano = piani.find((p) => p.id === t.piano);
     return s + (piano ? piano.prezzoMensile : 0);
   }, 0);
+
+  const handleSuspend = async (tenantId: string) => {
+    if (!confirm('Sei sicuro di voler sospendere questo tenant?')) return;
+    setSubmitting(true);
+    const t = tenants.find(t => t.id === tenantId);
+    if (t) {
+      await updateTenantAdmin(tenantId, { stato: t.stato === 'sospeso' ? 'attivo' : 'sospeso' });
+      refresh();
+    }
+    setSubmitting(false);
+  };
+
+  const handleChangePlan = async (tenantId: string, newPiano: string) => {
+    setSubmitting(true);
+    await updateTenantAdmin(tenantId, { piano: newPiano });
+    refresh();
+    setSubmitting(false);
+  };
 
   if (loading) return <div className="p-8 text-center">Caricamento...</div>;
 
@@ -66,50 +84,10 @@ export default function TenantPage() {
       description={`${tenants.length} aziende registrate`}
       actions={
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => alert('Demo: esporta tenant!')}>
+          <Button variant="outline" size="sm">
             <DollarSign className="mr-2 h-4 w-4" />
             Report
           </Button>
-          <Dialog>
-            <DialogTrigger className="inline-flex items-center justify-center rounded-md text-sm font-medium h-8 px-3 bg-[#1a2332] text-white hover:bg-[#1a2332]/90">
-              <Plus className="mr-2 h-4 w-4" />
-              Nuovo Tenant
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-lg">
-              <DialogHeader><DialogTitle>Nuovo Tenant</DialogTitle></DialogHeader>
-              <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); alert('Demo: tenant creato!'); }}>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div className="sm:col-span-2"><Label>Ragione Sociale *</Label><Input placeholder="Nome azienda" className="mt-1" required /></div>
-                  <div><Label>Partita IVA *</Label><Input placeholder="01234567890" className="mt-1" required /></div>
-                  <div><Label>Email Admin *</Label><Input type="email" placeholder="admin@azienda.it" className="mt-1" required /></div>
-                  <div><Label>Città</Label><Input placeholder="Milano" className="mt-1" /></div>
-                  <div>
-                    <Label>Piano</Label>
-                    <Select defaultValue="explore">
-                      <SelectTrigger className="mt-1 w-full"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="express">Express</SelectItem>
-                        <SelectItem value="explore">Explore</SelectItem>
-                        <SelectItem value="experience">Experience</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div><Label>Max Utenti</Label><Input type="number" defaultValue="10" className="mt-1" /></div>
-                  <div>
-                    <Label>Stato</Label>
-                    <Select defaultValue="attivo">
-                      <SelectTrigger className="mt-1 w-full"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="attivo">Attivo</SelectItem>
-                        <SelectItem value="trial">Trial</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                <div className="flex justify-end"><Button type="submit" className="bg-[#1a2332] hover:bg-[#1a2332]/90"><Save className="mr-2 h-4 w-4" />Crea Tenant</Button></div>
-              </form>
-            </DialogContent>
-          </Dialog>
         </div>
       }
     >
@@ -148,7 +126,12 @@ export default function TenantPage() {
                 <div className="grid grid-cols-2 gap-3 text-sm">
                   <div><p className="text-muted-foreground">Partita IVA</p><p className="font-medium font-mono">{formatPIVA(detailTenant.partitaIva)}</p></div>
                   <div><p className="text-muted-foreground">Stato</p><Badge variant="secondary" className={`text-xs ${detailTenant.stato === 'attivo' ? 'bg-green-100 text-green-800' : detailTenant.stato === 'sospeso' ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800'}`}>{detailTenant.stato}</Badge></div>
-                  <div><p className="text-muted-foreground">Piano</p><Badge variant="secondary" className={`text-xs ${detailTenant.piano === 'experience' ? 'bg-purple-100 text-purple-800' : detailTenant.piano === 'explore' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'}`}>{detailTenant.piano.charAt(0).toUpperCase() + detailTenant.piano.slice(1)}</Badge></div>
+                  <div><p className="text-muted-foreground">Piano</p>
+                    <Select defaultValue={detailTenant.piano} onValueChange={(v) => v && handleChangePlan(detailTenant.id, v)}>
+                      <SelectTrigger className="w-[140px] h-7"><SelectValue /></SelectTrigger>
+                      <SelectContent><SelectItem value="express">Express</SelectItem><SelectItem value="explore">Explore</SelectItem><SelectItem value="experience">Experience</SelectItem></SelectContent>
+                    </Select>
+                  </div>
                   <div><p className="text-muted-foreground">MRR</p><p className="font-bold">{piano ? formatCurrency(piano.prezzoMensile) : '—'}/mese</p></div>
                   <div><p className="text-muted-foreground">Utenti</p><p className="font-medium">{detailTenant.utentiAttivi} / {detailTenant.maxUtenti}</p></div>
                   <div><p className="text-muted-foreground">Data Creazione</p><p className="font-medium">{formatDate(detailTenant.dataCreazione)}</p></div>
@@ -238,18 +221,13 @@ export default function TenantPage() {
                             <MoreHorizontal className="h-4 w-4" />
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => alert('Demo: modifica piano!')}>
+                            <DropdownMenuItem onClick={() => { setDetailTenant(t); }}>
                               <Edit className="mr-2 h-4 w-4" />
                               Modifica Piano
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => alert('Demo: sospendi tenant!')}>
+                            <DropdownMenuItem onClick={() => handleSuspend(t.id)} disabled={submitting}>
                               <Pause className="mr-2 h-4 w-4" />
-                              Sospendi
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem className="text-red-600" onClick={() => alert('Demo: elimina tenant!')}>
-                              <Trash2 className="mr-2 h-4 w-4" />
-                              Elimina
+                              {t.stato === 'sospeso' ? 'Riattiva' : 'Sospendi'}
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
