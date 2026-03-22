@@ -20,7 +20,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Label } from '@/components/ui/label';
 import { Pagination } from '@/components/ui/pagination';
-import { fetchSpese } from '@/lib/actions/data';
+import { fetchSpese, createSpesa, updateSpesa, deleteSpesa } from '@/lib/actions/data';
 import { useServerData } from '@/lib/hooks/use-server-data';
 import { useAuth } from '@/lib/auth-context';
 import { formatCurrency, formatDate } from '@/lib/utils';
@@ -46,7 +46,7 @@ const categoriaBadge: Record<string, string> = {
 export default function SpesePage() {
   const { user } = useAuth();
   const tenantId = user?.tenantId || 't-1';
-  const [spese, loading] = useServerData(() => fetchSpese(tenantId), []);
+  const [spese, loading, refresh] = useServerData(() => fetchSpese(tenantId), []);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategoria, setFilterCategoria] = useState<string>('tutte');
@@ -56,6 +56,113 @@ export default function SpesePage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
+  // Create form state
+  const [createOpen, setCreateOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [formDescrizione, setFormDescrizione] = useState('');
+  const [formCategoria, setFormCategoria] = useState<string>('trasporti');
+  const [formImporto, setFormImporto] = useState('');
+  const [formData, setFormData] = useState('2026-03-18');
+
+  // Edit form state
+  const [editOpen, setEditOpen] = useState(false);
+  const [editItem, setEditItem] = useState<typeof spese[number] | null>(null);
+  const [editDescrizione, setEditDescrizione] = useState('');
+  const [editCategoria, setEditCategoria] = useState<string>('trasporti');
+  const [editImporto, setEditImporto] = useState('');
+  const [editData, setEditData] = useState('');
+
+  const resetCreateForm = () => {
+    setFormDescrizione('');
+    setFormCategoria('trasporti');
+    setFormImporto('');
+    setFormData('2026-03-18');
+  };
+
+  const openEdit = (s: typeof spese[number]) => {
+    setEditItem(s);
+    setEditDescrizione(s.descrizione);
+    setEditCategoria(s.categoria);
+    setEditImporto(String(s.importo));
+    setEditData(s.data);
+    setEditOpen(true);
+  };
+
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    const res = await createSpesa({
+      tenantId,
+      descrizione: formDescrizione,
+      categoria: formCategoria as 'trasporti' | 'pasti' | 'alloggio' | 'materiali' | 'servizi' | 'utenze' | 'altro',
+      importo: formImporto,
+      data: formData,
+      stato: 'da_approvare',
+    });
+    setSubmitting(false);
+    if (res.ok) {
+      resetCreateForm();
+      setCreateOpen(false);
+      refresh();
+    } else {
+      alert(res.error || 'Errore durante la creazione');
+    }
+  };
+
+  const handleEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editItem) return;
+    setSubmitting(true);
+    const res = await updateSpesa(editItem.id, {
+      descrizione: editDescrizione,
+      categoria: editCategoria,
+      importo: editImporto,
+      data: editData,
+    });
+    setSubmitting(false);
+    if (res.ok) {
+      setEditOpen(false);
+      setEditItem(null);
+      refresh();
+    } else {
+      alert(res.error || 'Errore durante la modifica');
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Sei sicuro di voler eliminare questa spesa?')) return;
+    setSubmitting(true);
+    const res = await deleteSpesa(id);
+    setSubmitting(false);
+    if (res.ok) {
+      refresh();
+    } else {
+      alert(res.error || 'Errore durante l\'eliminazione');
+    }
+  };
+
+  const handleApprove = async (id: string) => {
+    setSubmitting(true);
+    const res = await updateSpesa(id, { stato: 'approvata' });
+    setSubmitting(false);
+    if (res.ok) {
+      refresh();
+    } else {
+      alert(res.error || 'Errore durante l\'approvazione');
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (!confirm(`Sei sicuro di voler eliminare ${selectedIds.size} spese selezionate?`)) return;
+    setSubmitting(true);
+    for (const id of selectedIds) {
+      await deleteSpesa(id);
+    }
+    setSubmitting(false);
+    setSelectedIds(new Set());
+    refresh();
+  };
+
   const filtered = useMemo(() => {
     return spese.filter((s) => {
       const matchSearch = s.descrizione.toLowerCase().includes(searchTerm.toLowerCase());
@@ -63,7 +170,7 @@ export default function SpesePage() {
       const matchStato = filterStato === 'tutti' || s.stato === filterStato;
       return matchSearch && matchCat && matchStato;
     });
-  }, [searchTerm, filterCategoria, filterStato]);
+  }, [searchTerm, filterCategoria, filterStato, spese]);
 
   // Pagination
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
@@ -123,20 +230,20 @@ export default function SpesePage() {
             <Download className="mr-2 h-4 w-4" />
             Esporta CSV
           </Button>
-          <Dialog>
+          <Dialog open={createOpen} onOpenChange={(open) => { setCreateOpen(open); if (!open) resetCreateForm(); }}>
             <DialogTrigger className="inline-flex items-center justify-center rounded-md text-sm font-medium h-8 px-3 bg-[#1a2332] text-white hover:bg-[#1a2332]/90">
               <Plus className="mr-2 h-4 w-4" />
               Nuova Spesa
             </DialogTrigger>
           <DialogContent className="sm:max-w-md">
             <DialogHeader><DialogTitle>Nuova Nota Spese</DialogTitle></DialogHeader>
-            <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); alert('Demo: spesa registrata!'); }}>
+            <form className="space-y-4" onSubmit={handleCreate}>
               <div className="grid gap-3">
-                <div><Label>Descrizione *</Label><Input placeholder="Descrizione spesa" className="mt-1" required /></div>
+                <div><Label>Descrizione *</Label><Input placeholder="Descrizione spesa" className="mt-1" required value={formDescrizione} onChange={(e) => setFormDescrizione(e.target.value)} /></div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <Label>Categoria</Label>
-                    <Select defaultValue="trasporti">
+                    <Select value={formCategoria} onValueChange={(v) => setFormCategoria(v ?? 'trasporti')}>
                       <SelectTrigger className="mt-1 w-full"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="trasporti">Trasporti</SelectItem>
@@ -148,11 +255,11 @@ export default function SpesePage() {
                       </SelectContent>
                     </Select>
                   </div>
-                  <div><Label>Importo *</Label><Input type="number" step="0.01" placeholder="0,00" className="mt-1" required /></div>
+                  <div><Label>Importo *</Label><Input type="number" step="0.01" placeholder="0,00" className="mt-1" required value={formImporto} onChange={(e) => setFormImporto(e.target.value)} /></div>
                 </div>
-                <div><Label>Data</Label><Input type="date" defaultValue="2026-03-18" className="mt-1" /></div>
+                <div><Label>Data</Label><Input type="date" value={formData} onChange={(e) => setFormData(e.target.value)} className="mt-1" /></div>
               </div>
-              <div className="flex justify-end"><Button type="submit" className="bg-[#1a2332] hover:bg-[#1a2332]/90"><Save className="mr-2 h-4 w-4" />Registra</Button></div>
+              <div className="flex justify-end"><Button type="submit" className="bg-[#1a2332] hover:bg-[#1a2332]/90" disabled={submitting}><Save className="mr-2 h-4 w-4" />{submitting ? 'Salvataggio...' : 'Registra'}</Button></div>
             </form>
           </DialogContent>
           </Dialog>
@@ -183,8 +290,8 @@ export default function SpesePage() {
               <Button variant="outline" size="sm" onClick={() => alert('Demo: esportazione selezionati!')}>
                 <Download className="mr-2 h-4 w-4" />Esporta selezionati
               </Button>
-              <Button variant="destructive" size="sm" onClick={() => alert('Demo: eliminazione selezionati!')}>
-                <Trash2 className="mr-2 h-4 w-4" />Elimina selezionati
+              <Button variant="destructive" size="sm" onClick={handleBulkDelete} disabled={submitting}>
+                <Trash2 className="mr-2 h-4 w-4" />{submitting ? 'Eliminazione...' : 'Elimina selezionati'}
               </Button>
             </div>
           </CardContent>
@@ -234,22 +341,41 @@ export default function SpesePage() {
                       <MoreHorizontal className="h-4 w-4" />
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => alert('Demo: azione eseguita!')}>
+                      <DropdownMenuItem onClick={() => openEdit(s)}>
                         <Pencil className="mr-2 h-4 w-4" />Modifica
                       </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => alert('Demo: azione eseguita!')}>
+                      <DropdownMenuItem onClick={() => {
+                        createSpesa({
+                          tenantId,
+                          descrizione: s.descrizione,
+                          categoria: s.categoria as 'trasporti' | 'pasti' | 'alloggio' | 'materiali' | 'servizi' | 'utenze' | 'altro',
+                          importo: String(s.importo),
+                          data: s.data,
+                          dipendenteId: s.dipendenteId ?? undefined,
+                          dipendenteNome: s.dipendenteNome ?? undefined,
+                          clienteId: s.clienteId ?? undefined,
+                          clienteNome: s.clienteNome ?? undefined,
+                          progettoId: s.progettoId ?? undefined,
+                          progettoNome: s.progettoNome ?? undefined,
+                          stato: 'da_approvare',
+                          note: s.note ?? undefined,
+                        }).then((res) => {
+                          if (res.ok) refresh();
+                          else alert(res.error || 'Errore durante la duplicazione');
+                        });
+                      }}>
                         <Copy className="mr-2 h-4 w-4" />Duplica
                       </DropdownMenuItem>
                       {s.stato === 'da_approvare' && (
                         <>
                           <DropdownMenuSeparator />
-                          <DropdownMenuItem onClick={() => alert('Demo: azione eseguita!')} className="text-green-600">
+                          <DropdownMenuItem onClick={() => handleApprove(s.id)} className="text-green-600">
                             <CheckCircle className="mr-2 h-4 w-4" />Approva
                           </DropdownMenuItem>
                         </>
                       )}
                       <DropdownMenuSeparator />
-                      <DropdownMenuItem onClick={() => alert('Demo: azione eseguita!')} className="text-red-600">
+                      <DropdownMenuItem onClick={() => handleDelete(s.id)} className="text-red-600">
                         <Trash2 className="mr-2 h-4 w-4" />Elimina
                       </DropdownMenuItem>
                     </DropdownMenuContent>
@@ -316,6 +442,37 @@ export default function SpesePage() {
               )}
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Dialog */}
+      <Dialog open={editOpen} onOpenChange={(open) => { setEditOpen(open); if (!open) setEditItem(null); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader><DialogTitle>Modifica Spesa</DialogTitle></DialogHeader>
+          <form className="space-y-4" onSubmit={handleEdit}>
+            <div className="grid gap-3">
+              <div><Label>Descrizione *</Label><Input placeholder="Descrizione spesa" className="mt-1" required value={editDescrizione} onChange={(e) => setEditDescrizione(e.target.value)} /></div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Categoria</Label>
+                  <Select value={editCategoria} onValueChange={(v) => setEditCategoria(v ?? 'trasporti')}>
+                    <SelectTrigger className="mt-1 w-full"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="trasporti">Trasporti</SelectItem>
+                      <SelectItem value="pasti">Pasti</SelectItem>
+                      <SelectItem value="materiali">Materiali</SelectItem>
+                      <SelectItem value="servizi">Servizi</SelectItem>
+                      <SelectItem value="utenze">Utenze</SelectItem>
+                      <SelectItem value="altro">Altro</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div><Label>Importo *</Label><Input type="number" step="0.01" placeholder="0,00" className="mt-1" required value={editImporto} onChange={(e) => setEditImporto(e.target.value)} /></div>
+              </div>
+              <div><Label>Data</Label><Input type="date" value={editData} onChange={(e) => setEditData(e.target.value)} className="mt-1" /></div>
+            </div>
+            <div className="flex justify-end"><Button type="submit" className="bg-[#1a2332] hover:bg-[#1a2332]/90" disabled={submitting}><Save className="mr-2 h-4 w-4" />{submitting ? 'Salvataggio...' : 'Salva Modifiche'}</Button></div>
+          </form>
         </DialogContent>
       </Dialog>
     </PageContainer>

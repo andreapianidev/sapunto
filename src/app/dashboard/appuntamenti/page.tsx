@@ -17,7 +17,7 @@ import {
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { fetchAppuntamenti, fetchClienti } from '@/lib/actions/data';
+import { fetchAppuntamenti, fetchClienti, createAppuntamento, updateAppuntamento, deleteAppuntamento } from '@/lib/actions/data';
 import { useServerData } from '@/lib/hooks/use-server-data';
 import { useAuth } from '@/lib/auth-context';
 import { formatDate } from '@/lib/utils';
@@ -29,7 +29,7 @@ const giorniSettimanaCompleti = ['Lunedì', 'Martedì', 'Mercoledì', 'Giovedì'
 export default function AppuntamentiPage() {
   const { user } = useAuth();
   const tenantId = user?.tenantId || 't-1';
-  const [allData, loading] = useServerData(
+  const [allData, loading, refresh] = useServerData(
     () => Promise.all([fetchAppuntamenti(tenantId), fetchClienti(tenantId)]),
     [[], []]
   );
@@ -44,10 +44,129 @@ export default function AppuntamentiPage() {
   const [filtroOperatore, setFiltroOperatore] = useState<string>('tutti');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
+  // Create form state
+  const [createOpen, setCreateOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [formTitolo, setFormTitolo] = useState('');
+  const [formClienteId, setFormClienteId] = useState('');
+  const [formOperatore, setFormOperatore] = useState('Marco Rossi');
+  const [formData, setFormData] = useState('');
+  const [formOraInizio, setFormOraInizio] = useState('');
+  const [formOraFine, setFormOraFine] = useState('');
+  const [formLuogo, setFormLuogo] = useState('');
+  const [formStato, setFormStato] = useState<string>('confermato');
+  const [formNote, setFormNote] = useState('');
+
+  // Edit form state
+  const [editOpen, setEditOpen] = useState(false);
+  const [editId, setEditId] = useState<string | null>(null);
+  const [editTitolo, setEditTitolo] = useState('');
+  const [editClienteId, setEditClienteId] = useState('');
+  const [editOperatore, setEditOperatore] = useState('');
+  const [editData, setEditData] = useState('');
+  const [editOraInizio, setEditOraInizio] = useState('');
+  const [editOraFine, setEditOraFine] = useState('');
+  const [editLuogo, setEditLuogo] = useState('');
+  const [editStato, setEditStato] = useState<string>('confermato');
+  const [editNote, setEditNote] = useState('');
+
+  const resetCreateForm = () => {
+    setFormTitolo('');
+    setFormClienteId('');
+    setFormOperatore('Marco Rossi');
+    setFormData('');
+    setFormOraInizio('');
+    setFormOraFine('');
+    setFormLuogo('');
+    setFormStato('confermato');
+    setFormNote('');
+  };
+
+  const openEdit = (app: typeof appuntamenti[number]) => {
+    setEditId(app.id);
+    setEditTitolo(app.titolo);
+    setEditClienteId(app.clienteId || '');
+    setEditOperatore(app.operatoreNome);
+    setEditData(app.data);
+    setEditOraInizio(app.oraInizio);
+    setEditOraFine(app.oraFine);
+    setEditLuogo(app.luogo || '');
+    setEditStato(app.stato);
+    setEditNote(app.note || '');
+    setEditOpen(true);
+  };
+
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    const selectedCliente = clienti.find((c) => c.id === formClienteId);
+    const res = await createAppuntamento({
+      tenantId,
+      titolo: formTitolo,
+      clienteId: formClienteId || undefined,
+      clienteNome: selectedCliente?.ragioneSociale || undefined,
+      operatoreId: '',
+      operatoreNome: formOperatore,
+      data: formData,
+      oraInizio: formOraInizio,
+      oraFine: formOraFine,
+      stato: formStato as 'confermato' | 'in_attesa' | 'annullato',
+      luogo: formLuogo || undefined,
+      note: formNote || undefined,
+    });
+    setSubmitting(false);
+    if (res.ok) {
+      resetCreateForm();
+      setCreateOpen(false);
+      refresh();
+    } else {
+      alert(res.error || 'Errore durante la creazione');
+    }
+  };
+
+  const handleEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editId) return;
+    setSubmitting(true);
+    const selectedCliente = clienti.find((c) => c.id === editClienteId);
+    const res = await updateAppuntamento(editId, {
+      titolo: editTitolo,
+      clienteId: editClienteId || null,
+      clienteNome: selectedCliente?.ragioneSociale || null,
+      operatoreNome: editOperatore,
+      data: editData,
+      oraInizio: editOraInizio,
+      oraFine: editOraFine,
+      stato: editStato,
+      luogo: editLuogo || null,
+      note: editNote || null,
+    });
+    setSubmitting(false);
+    if (res.ok) {
+      setEditOpen(false);
+      setEditId(null);
+      refresh();
+    } else {
+      alert(res.error || 'Errore durante la modifica');
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Sei sicuro di voler eliminare questo appuntamento?')) return;
+    setSubmitting(true);
+    const res = await deleteAppuntamento(id);
+    setSubmitting(false);
+    if (res.ok) {
+      refresh();
+    } else {
+      alert(res.error || 'Errore durante l\'eliminazione');
+    }
+  };
+
   const oggi = '2026-03-18';
 
   // Unique operators from data
-  const operatori = useMemo(() => Array.from(new Set(appuntamenti.map(a => a.operatoreNome))).sort(), []);
+  const operatori = useMemo(() => Array.from(new Set(appuntamenti.map(a => a.operatoreNome))).sort(), [appuntamenti]);
 
   // Filtered appuntamenti
   const appuntamentiFiltrati = useMemo(() => {
@@ -56,7 +175,7 @@ export default function AppuntamentiPage() {
       if (filtroOperatore !== 'tutti' && a.operatoreNome !== filtroOperatore) return false;
       return true;
     });
-  }, [filtroStato, filtroOperatore]);
+  }, [filtroStato, filtroOperatore, appuntamenti]);
 
   const getSettimana = (offset: number) => {
     const base = new Date('2026-03-16'); // Lunedì
@@ -173,9 +292,15 @@ export default function AppuntamentiPage() {
     }
   };
 
-  const handleBulkDelete = () => {
-    alert(`Demo: eliminazione di ${selectedIds.size} appuntamenti selezionati!`);
+  const handleBulkDelete = async () => {
+    if (!confirm(`Sei sicuro di voler eliminare ${selectedIds.size} appuntamenti selezionati?`)) return;
+    setSubmitting(true);
+    for (const id of selectedIds) {
+      await deleteAppuntamento(id);
+    }
+    setSubmitting(false);
     setSelectedIds(new Set());
+    refresh();
   };
 
   const handleBulkExport = () => {
@@ -194,7 +319,7 @@ export default function AppuntamentiPage() {
             <Download className="mr-2 h-4 w-4" />
             Esporta
           </Button>
-          <Dialog>
+          <Dialog open={createOpen} onOpenChange={(open) => { setCreateOpen(open); if (!open) resetCreateForm(); }}>
             <DialogTrigger className="inline-flex items-center justify-center rounded-md text-sm font-medium h-8 px-3 bg-[#1a2332] text-white hover:bg-[#1a2332]/90">
               <Plus className="mr-2 h-4 w-4" />
               Nuovo Appuntamento
@@ -203,15 +328,15 @@ export default function AppuntamentiPage() {
               <DialogHeader>
                 <DialogTitle>Nuovo Appuntamento</DialogTitle>
               </DialogHeader>
-              <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); alert('Demo: appuntamento creato!'); }}>
+              <form className="space-y-4" onSubmit={handleCreate}>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div className="sm:col-span-2">
                     <Label>Titolo *</Label>
-                    <Input placeholder="Es. Sopralluogo cliente" className="mt-1" required />
+                    <Input placeholder="Es. Sopralluogo cliente" className="mt-1" required value={formTitolo} onChange={(e) => setFormTitolo(e.target.value)} />
                   </div>
                   <div>
                     <Label>Cliente</Label>
-                    <Select>
+                    <Select value={formClienteId} onValueChange={(v) => setFormClienteId(v ?? '')}>
                       <SelectTrigger className="mt-1 w-full">
                         <SelectValue placeholder="Seleziona cliente" />
                       </SelectTrigger>
@@ -224,27 +349,27 @@ export default function AppuntamentiPage() {
                   </div>
                   <div>
                     <Label>Operatore</Label>
-                    <Input defaultValue="Marco Rossi" className="mt-1" />
+                    <Input value={formOperatore} onChange={(e) => setFormOperatore(e.target.value)} className="mt-1" />
                   </div>
                   <div>
                     <Label>Data</Label>
-                    <Input type="date" className="mt-1" />
+                    <Input type="date" className="mt-1" value={formData} onChange={(e) => setFormData(e.target.value)} />
                   </div>
                   <div>
                     <Label>Ora Inizio</Label>
-                    <Input type="time" className="mt-1" />
+                    <Input type="time" className="mt-1" value={formOraInizio} onChange={(e) => setFormOraInizio(e.target.value)} />
                   </div>
                   <div>
                     <Label>Ora Fine</Label>
-                    <Input type="time" className="mt-1" />
+                    <Input type="time" className="mt-1" value={formOraFine} onChange={(e) => setFormOraFine(e.target.value)} />
                   </div>
                   <div>
                     <Label>Luogo</Label>
-                    <Input placeholder="Es. Via Roma 10, Milano" className="mt-1" />
+                    <Input placeholder="Es. Via Roma 10, Milano" className="mt-1" value={formLuogo} onChange={(e) => setFormLuogo(e.target.value)} />
                   </div>
                   <div>
                     <Label>Stato</Label>
-                    <Select defaultValue="confermato">
+                    <Select value={formStato} onValueChange={(v) => setFormStato(v ?? 'confermato')}>
                       <SelectTrigger className="mt-1 w-full">
                         <SelectValue />
                       </SelectTrigger>
@@ -259,13 +384,15 @@ export default function AppuntamentiPage() {
                     <textarea
                       placeholder="Note aggiuntive..."
                       rows={3}
+                      value={formNote}
+                      onChange={(e) => setFormNote(e.target.value)}
                       className="mt-1 flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                     />
                   </div>
                 </div>
                 <div className="flex justify-end">
-                  <Button type="submit" className="bg-[#1a2332] hover:bg-[#1a2332]/90">
-                    Salva Appuntamento
+                  <Button type="submit" className="bg-[#1a2332] hover:bg-[#1a2332]/90" disabled={submitting}>
+                    {submitting ? 'Salvataggio...' : 'Salva Appuntamento'}
                   </Button>
                 </div>
               </form>
@@ -392,11 +519,11 @@ export default function AppuntamentiPage() {
                                 <MoreHorizontal className="h-3 w-3" />
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
-                                <DropdownMenuItem onClick={() => alert('Demo: azione eseguita!')}>
+                                <DropdownMenuItem onClick={() => openEdit(app)}>
                                   <Pencil className="mr-2 h-4 w-4" />Modifica
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />
-                                <DropdownMenuItem onClick={() => alert('Demo: azione eseguita!')} className="text-red-600">
+                                <DropdownMenuItem onClick={() => handleDelete(app.id)} className="text-red-600">
                                   <Trash2 className="mr-2 h-4 w-4" />Elimina
                                 </DropdownMenuItem>
                               </DropdownMenuContent>
@@ -598,9 +725,9 @@ export default function AppuntamentiPage() {
                   <Download className="mr-1 h-3 w-3" />
                   Esporta
                 </Button>
-                <Button variant="outline" size="sm" onClick={handleBulkDelete} className="text-red-600 hover:text-red-700 hover:bg-red-50">
+                <Button variant="outline" size="sm" onClick={handleBulkDelete} disabled={submitting} className="text-red-600 hover:text-red-700 hover:bg-red-50">
                   <Trash2 className="mr-1 h-3 w-3" />
-                  Elimina
+                  {submitting ? 'Eliminazione...' : 'Elimina'}
                 </Button>
               </div>
             )}
@@ -654,11 +781,11 @@ export default function AppuntamentiPage() {
                     <MoreHorizontal className="h-4 w-4" />
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => alert('Demo: azione eseguita!')}>
+                    <DropdownMenuItem onClick={() => openEdit(app)}>
                       <Pencil className="mr-2 h-4 w-4" />Modifica
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={() => alert('Demo: azione eseguita!')} className="text-red-600">
+                    <DropdownMenuItem onClick={() => handleDelete(app.id)} className="text-red-600">
                       <Trash2 className="mr-2 h-4 w-4" />Elimina
                     </DropdownMenuItem>
                   </DropdownMenuContent>
@@ -670,6 +797,84 @@ export default function AppuntamentiPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Edit Dialog */}
+      <Dialog open={editOpen} onOpenChange={(open) => { setEditOpen(open); if (!open) setEditId(null); }}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Modifica Appuntamento</DialogTitle>
+          </DialogHeader>
+          <form className="space-y-4" onSubmit={handleEdit}>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="sm:col-span-2">
+                <Label>Titolo *</Label>
+                <Input placeholder="Es. Sopralluogo cliente" className="mt-1" required value={editTitolo} onChange={(e) => setEditTitolo(e.target.value)} />
+              </div>
+              <div>
+                <Label>Cliente</Label>
+                <Select value={editClienteId} onValueChange={(v) => setEditClienteId(v ?? '')}>
+                  <SelectTrigger className="mt-1 w-full">
+                    <SelectValue placeholder="Seleziona cliente" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {clienti.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>{c.ragioneSociale}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Operatore</Label>
+                <Input value={editOperatore} onChange={(e) => setEditOperatore(e.target.value)} className="mt-1" />
+              </div>
+              <div>
+                <Label>Data</Label>
+                <Input type="date" className="mt-1" value={editData} onChange={(e) => setEditData(e.target.value)} />
+              </div>
+              <div>
+                <Label>Ora Inizio</Label>
+                <Input type="time" className="mt-1" value={editOraInizio} onChange={(e) => setEditOraInizio(e.target.value)} />
+              </div>
+              <div>
+                <Label>Ora Fine</Label>
+                <Input type="time" className="mt-1" value={editOraFine} onChange={(e) => setEditOraFine(e.target.value)} />
+              </div>
+              <div>
+                <Label>Luogo</Label>
+                <Input placeholder="Es. Via Roma 10, Milano" className="mt-1" value={editLuogo} onChange={(e) => setEditLuogo(e.target.value)} />
+              </div>
+              <div>
+                <Label>Stato</Label>
+                <Select value={editStato} onValueChange={(v) => setEditStato(v ?? 'confermato')}>
+                  <SelectTrigger className="mt-1 w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="confermato">Confermato</SelectItem>
+                    <SelectItem value="in_attesa">In Attesa</SelectItem>
+                    <SelectItem value="annullato">Annullato</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="sm:col-span-2">
+                <Label>Note</Label>
+                <textarea
+                  placeholder="Note aggiuntive..."
+                  rows={3}
+                  value={editNote}
+                  onChange={(e) => setEditNote(e.target.value)}
+                  className="mt-1 flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                />
+              </div>
+            </div>
+            <div className="flex justify-end">
+              <Button type="submit" className="bg-[#1a2332] hover:bg-[#1a2332]/90" disabled={submitting}>
+                {submitting ? 'Salvataggio...' : 'Salva Modifiche'}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
     </PageContainer>
   );
 }

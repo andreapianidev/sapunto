@@ -20,7 +20,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Pagination } from '@/components/ui/pagination';
-import { fetchNoteDiCredito } from '@/lib/actions/data';
+import { fetchNoteDiCredito, createNotaDiCredito, updateNotaDiCredito, deleteNotaDiCredito } from '@/lib/actions/data';
 import { useServerData } from '@/lib/hooks/use-server-data';
 import { useAuth } from '@/lib/auth-context';
 import { formatCurrency, formatDate } from '@/lib/utils';
@@ -42,7 +42,7 @@ const statoLabel: Record<string, string> = {
 export default function NoteCreditoPage() {
   const { user } = useAuth();
   const tenantId = user?.tenantId || 't-1';
-  const [noteDiCredito, loading] = useServerData(() => fetchNoteDiCredito(tenantId), []);
+  const [noteDiCredito, loading, refresh] = useServerData(() => fetchNoteDiCredito(tenantId), []);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStato, setFilterStato] = useState<string>('tutti');
@@ -51,6 +51,111 @@ export default function NoteCreditoPage() {
   const [detailOpen, setDetailOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+
+  // Create form state
+  const [createOpen, setCreateOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [formFatturaRif, setFormFatturaRif] = useState('');
+  const [formMotivo, setFormMotivo] = useState('');
+  const [formImporto, setFormImporto] = useState('');
+  const [formIva, setFormIva] = useState('');
+
+  // Edit form state
+  const [editOpen, setEditOpen] = useState(false);
+  const [editItem, setEditItem] = useState<NotaDiCredito | null>(null);
+  const [editMotivo, setEditMotivo] = useState('');
+  const [editImporto, setEditImporto] = useState('');
+  const [editIva, setEditIva] = useState('');
+
+  const resetCreateForm = () => {
+    setFormFatturaRif('');
+    setFormMotivo('');
+    setFormImporto('');
+    setFormIva('');
+  };
+
+  const openEdit = (n: NotaDiCredito) => {
+    setEditItem(n);
+    setEditMotivo(n.motivo);
+    setEditImporto(String(n.importo));
+    setEditIva(String(n.iva));
+    setEditOpen(true);
+  };
+
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    const importoNum = parseFloat(formImporto || '0');
+    const ivaNum = parseFloat(formIva || '0');
+    const totale = importoNum + ivaNum;
+    const res = await createNotaDiCredito({
+      tenantId,
+      fatturaId: '',
+      fatturaNumero: formFatturaRif,
+      clienteId: '',
+      clienteNome: '',
+      data: new Date().toISOString().split('T')[0],
+      motivo: formMotivo,
+      importo: String(importoNum),
+      iva: String(ivaNum),
+      totale: String(totale),
+      stato: 'emessa',
+    });
+    setSubmitting(false);
+    if (res.ok) {
+      resetCreateForm();
+      setCreateOpen(false);
+      refresh();
+    } else {
+      alert(res.error || 'Errore durante la creazione');
+    }
+  };
+
+  const handleEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editItem) return;
+    setSubmitting(true);
+    const importoNum = parseFloat(editImporto || '0');
+    const ivaNum = parseFloat(editIva || '0');
+    const totale = importoNum + ivaNum;
+    const res = await updateNotaDiCredito(editItem.id, {
+      motivo: editMotivo,
+      importo: String(importoNum),
+      iva: String(ivaNum),
+      totale: String(totale),
+    });
+    setSubmitting(false);
+    if (res.ok) {
+      setEditOpen(false);
+      setEditItem(null);
+      refresh();
+    } else {
+      alert(res.error || 'Errore durante la modifica');
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Sei sicuro di voler eliminare questa nota di credito?')) return;
+    setSubmitting(true);
+    const res = await deleteNotaDiCredito(id);
+    setSubmitting(false);
+    if (res.ok) {
+      refresh();
+    } else {
+      alert(res.error || 'Errore durante l\'eliminazione');
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (!confirm(`Sei sicuro di voler eliminare ${selectedIds.size} note di credito selezionate?`)) return;
+    setSubmitting(true);
+    for (const id of selectedIds) {
+      await deleteNotaDiCredito(id);
+    }
+    setSubmitting(false);
+    setSelectedIds(new Set());
+    refresh();
+  };
 
   // --- Filtering ---
   const filtered = useMemo(() => {
@@ -61,7 +166,7 @@ export default function NoteCreditoPage() {
       const matchStato = filterStato === 'tutti' || n.stato === filterStato;
       return matchSearch && matchStato;
     });
-  }, [searchTerm, filterStato]);
+  }, [searchTerm, filterStato, noteDiCredito]);
 
   // Reset to page 1 when filters change
   useMemo(() => {
@@ -123,23 +228,23 @@ export default function NoteCreditoPage() {
             <Download className="mr-2 h-4 w-4" />
             Esporta CSV
           </Button>
-          <Dialog>
+          <Dialog open={createOpen} onOpenChange={(open) => { setCreateOpen(open); if (!open) resetCreateForm(); }}>
             <DialogTrigger className="inline-flex items-center justify-center rounded-md text-sm font-medium h-8 px-3 bg-[#1a2332] text-white hover:bg-[#1a2332]/90">
               <Plus className="mr-2 h-4 w-4" />
               Nuova Nota di Credito
             </DialogTrigger>
           <DialogContent className="sm:max-w-md">
             <DialogHeader><DialogTitle>Nuova Nota di Credito</DialogTitle></DialogHeader>
-            <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); alert('Demo: nota di credito emessa!'); }}>
+            <form className="space-y-4" onSubmit={handleCreate}>
               <div className="grid gap-3">
-                <div><Label>Fattura di Riferimento *</Label><Input placeholder="Es. FE-2026-0025" className="mt-1" required /></div>
-                <div><Label>Motivo *</Label><Input placeholder="Motivo della nota di credito" className="mt-1" required /></div>
+                <div><Label>Fattura di Riferimento *</Label><Input placeholder="Es. FE-2026-0025" className="mt-1" required value={formFatturaRif} onChange={(e) => setFormFatturaRif(e.target.value)} /></div>
+                <div><Label>Motivo *</Label><Input placeholder="Motivo della nota di credito" className="mt-1" required value={formMotivo} onChange={(e) => setFormMotivo(e.target.value)} /></div>
                 <div className="grid grid-cols-2 gap-3">
-                  <div><Label>Importo (netto)</Label><Input type="number" step="0.01" placeholder="0,00" className="mt-1" /></div>
-                  <div><Label>IVA</Label><Input type="number" step="0.01" placeholder="0,00" className="mt-1" /></div>
+                  <div><Label>Importo (netto)</Label><Input type="number" step="0.01" placeholder="0,00" className="mt-1" value={formImporto} onChange={(e) => setFormImporto(e.target.value)} /></div>
+                  <div><Label>IVA</Label><Input type="number" step="0.01" placeholder="0,00" className="mt-1" value={formIva} onChange={(e) => setFormIva(e.target.value)} /></div>
                 </div>
               </div>
-              <div className="flex justify-end"><Button type="submit" className="bg-[#1a2332] hover:bg-[#1a2332]/90"><Save className="mr-2 h-4 w-4" />Emetti</Button></div>
+              <div className="flex justify-end"><Button type="submit" className="bg-[#1a2332] hover:bg-[#1a2332]/90" disabled={submitting}><Save className="mr-2 h-4 w-4" />{submitting ? 'Salvataggio...' : 'Emetti'}</Button></div>
             </form>
           </DialogContent>
           </Dialog>
@@ -186,8 +291,8 @@ export default function NoteCreditoPage() {
         <Card>
           <CardContent className="p-3 flex items-center gap-3">
             <span className="text-sm font-medium">{selectedIds.size} selezionati</span>
-            <Button variant="destructive" size="sm" onClick={() => alert('Demo: azione eseguita!')}>
-              <Trash2 className="mr-2 h-4 w-4" />Elimina selezionati
+            <Button variant="destructive" size="sm" onClick={handleBulkDelete} disabled={submitting}>
+              <Trash2 className="mr-2 h-4 w-4" />{submitting ? 'Eliminazione...' : 'Elimina selezionati'}
             </Button>
             <Button variant="outline" size="sm" onClick={() => exportCSV(filtered.filter((n) => selectedIds.has(n.id)))}>
               <Download className="mr-2 h-4 w-4" />Esporta selezionati
@@ -254,14 +359,31 @@ export default function NoteCreditoPage() {
                           <MoreHorizontal className="h-4 w-4" />
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => alert('Demo: azione eseguita!')}>
+                          <DropdownMenuItem onClick={() => openEdit(n)}>
                             <Pencil className="mr-2 h-4 w-4" />Modifica
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => alert('Demo: azione eseguita!')}>
+                          <DropdownMenuItem onClick={() => {
+                            createNotaDiCredito({
+                              tenantId,
+                              fatturaId: n.fatturaId,
+                              fatturaNumero: n.fatturaNumero,
+                              clienteId: n.clienteId,
+                              clienteNome: n.clienteNome,
+                              data: new Date().toISOString().split('T')[0],
+                              motivo: n.motivo,
+                              importo: String(n.importo),
+                              iva: String(n.iva),
+                              totale: String(n.totale),
+                              stato: 'emessa',
+                            }).then((res) => {
+                              if (res.ok) refresh();
+                              else alert(res.error || 'Errore durante la duplicazione');
+                            });
+                          }}>
                             <Copy className="mr-2 h-4 w-4" />Duplica
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
-                          <DropdownMenuItem onClick={() => alert('Demo: azione eseguita!')} className="text-red-600">
+                          <DropdownMenuItem onClick={() => handleDelete(n.id)} className="text-red-600">
                             <Trash2 className="mr-2 h-4 w-4" />Elimina
                           </DropdownMenuItem>
                         </DropdownMenuContent>
@@ -337,6 +459,23 @@ export default function NoteCreditoPage() {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Dialog */}
+      <Dialog open={editOpen} onOpenChange={(open) => { setEditOpen(open); if (!open) setEditItem(null); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader><DialogTitle>Modifica Nota di Credito</DialogTitle></DialogHeader>
+          <form className="space-y-4" onSubmit={handleEdit}>
+            <div className="grid gap-3">
+              <div><Label>Motivo *</Label><Input placeholder="Motivo della nota di credito" className="mt-1" required value={editMotivo} onChange={(e) => setEditMotivo(e.target.value)} /></div>
+              <div className="grid grid-cols-2 gap-3">
+                <div><Label>Importo (netto)</Label><Input type="number" step="0.01" placeholder="0,00" className="mt-1" value={editImporto} onChange={(e) => setEditImporto(e.target.value)} /></div>
+                <div><Label>IVA</Label><Input type="number" step="0.01" placeholder="0,00" className="mt-1" value={editIva} onChange={(e) => setEditIva(e.target.value)} /></div>
+              </div>
+            </div>
+            <div className="flex justify-end"><Button type="submit" className="bg-[#1a2332] hover:bg-[#1a2332]/90" disabled={submitting}><Save className="mr-2 h-4 w-4" />{submitting ? 'Salvataggio...' : 'Salva Modifiche'}</Button></div>
+          </form>
         </DialogContent>
       </Dialog>
     </PageContainer>
