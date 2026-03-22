@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { confermaPagamento, segnaTransazioneFallita } from '@/lib/actions/payments';
+import { paypalClient } from '@/lib/payments/paypal';
 import type { PayPalWebhookEvent } from '@/lib/payments/paypal';
 
 /**
@@ -11,7 +12,42 @@ import type { PayPalWebhookEvent } from '@/lib/payments/paypal';
  */
 export async function POST(request: NextRequest) {
   try {
-    const payload: PayPalWebhookEvent = await request.json();
+    // Leggiamo il body come testo per la validazione della firma
+    const rawBody = await request.text();
+
+    // Validazione firma webhook PayPal
+    const webhookId = process.env.PAYPAL_WEBHOOK_ID;
+    if (webhookId) {
+      const authAlgo = request.headers.get('paypal-auth-algo');
+      const certUrl = request.headers.get('paypal-cert-url');
+      const transmissionId = request.headers.get('paypal-transmission-id');
+      const transmissionSig = request.headers.get('paypal-transmission-sig');
+      const transmissionTime = request.headers.get('paypal-transmission-time');
+
+      if (!authAlgo || !certUrl || !transmissionId || !transmissionSig || !transmissionTime) {
+        console.error('[PayPal Webhook] Missing required PayPal signature headers');
+        return NextResponse.json({ error: 'Missing signature headers' }, { status: 401 });
+      }
+
+      const isValid = await paypalClient.verifyWebhookSignature({
+        authAlgo,
+        certUrl,
+        transmissionId,
+        transmissionSig,
+        transmissionTime,
+        webhookId,
+        webhookEvent: JSON.parse(rawBody),
+      });
+
+      if (!isValid) {
+        console.error('[PayPal Webhook] Signature verification failed');
+        return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
+      }
+    } else {
+      console.warn('[PayPal Webhook] PAYPAL_WEBHOOK_ID not configured — skipping signature validation (development mode)');
+    }
+
+    const payload: PayPalWebhookEvent = JSON.parse(rawBody);
 
     const { event_type, resource } = payload;
 
