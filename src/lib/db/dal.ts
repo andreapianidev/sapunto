@@ -85,6 +85,14 @@ export async function getProdottoById(id: string) {
   };
 }
 
+// ==================== PRODOTTI (query extra) ====================
+
+export async function getProdottoBySku(tenantId: string, sku: string) {
+  const rows = await db.select().from(schema.prodotti)
+    .where(and(eq(schema.prodotti.tenantId, tenantId), eq(schema.prodotti.sku, sku)));
+  return rows[0] ?? null;
+}
+
 // ==================== ORDINI ====================
 
 export async function getOrdini(tenantId: string) {
@@ -209,10 +217,23 @@ export async function getIntegrazioniEcommerce(tenantId: string) {
   return db.select().from(schema.integrazioniEcommerce).where(eq(schema.integrazioniEcommerce.tenantId, tenantId));
 }
 
+export async function getIntegrazioneById(id: string) {
+  const rows = await db.select().from(schema.integrazioniEcommerce).where(eq(schema.integrazioniEcommerce.id, id));
+  return rows[0] ?? null;
+}
+
+export async function updateIntegrazione(id: string, data: Partial<typeof schema.integrazioniEcommerce.$inferInsert>) {
+  await db.update(schema.integrazioniEcommerce).set(data).where(eq(schema.integrazioniEcommerce.id, id));
+}
+
 // ==================== LOG SYNC ====================
 
 export async function getLogSync() {
   return db.select().from(schema.logSync);
+}
+
+export async function createLogSync(data: typeof schema.logSync.$inferInsert) {
+  await db.insert(schema.logSync).values(data);
 }
 
 // ==================== PREVENTIVI ====================

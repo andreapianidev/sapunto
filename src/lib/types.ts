@@ -227,6 +227,8 @@ export interface IntegrazionEcommerce {
   piattaforma: 'woocommerce' | 'prestashop' | 'shopify';
   stato: 'attivo' | 'disattivo' | 'errore' | 'prossimamente';
   urlNegozio?: string | null;
+  apiKey?: string | null;
+  apiSecret?: string | null;
   ultimoSync?: string | null;
   ordiniSincronizzati: number;
   prodottiMappati: number;

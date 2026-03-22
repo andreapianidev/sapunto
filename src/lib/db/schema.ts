@@ -270,6 +270,8 @@ export const integrazioniEcommerce = pgTable('integrazioni_ecommerce', {
   piattaforma: piattaformaEcommerceEnum('piattaforma').notNull(),
   stato: statoIntegrazioneEnum('stato').notNull(),
   urlNegozio: text('url_negozio'),
+  apiKey: text('api_key'),
+  apiSecret: text('api_secret'),
   ultimoSync: text('ultimo_sync'),
   ordiniSincronizzati: integer('ordini_sincronizzati').notNull().default(0),
   prodottiMappati: integer('prodotti_mappati').notNull().default(0),
