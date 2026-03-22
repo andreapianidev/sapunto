@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { PageContainer } from '@/components/layout/page-container';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -18,6 +18,23 @@ import { formatCurrency, formatDate } from '@/lib/utils';
 import { Plus, FolderKanban, CheckCircle, Clock, Save, MoreHorizontal, Pencil, Trash2, Download, Search, Eye, ListTodo, CalendarDays, User as UserIcon } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import type { StatoProgetto, StatoTask, Progetto } from '@/lib/types';
+import {
+  DndContext,
+  closestCorners,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragOverlay,
+  useDroppable,
+  type DragEndEvent,
+  type DragStartEvent,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 const statoBadge: Record<string, string> = { pianificato: 'bg-gray-100 text-gray-800', in_corso: 'bg-blue-100 text-blue-800', in_pausa: 'bg-yellow-100 text-yellow-800', completato: 'bg-green-100 text-green-800', annullato: 'bg-red-100 text-red-800' };
 const statoLabel: Record<string, string> = { pianificato: 'Pianificato', in_corso: 'In Corso', in_pausa: 'In Pausa', completato: 'Completato', annullato: 'Annullato' };
@@ -26,6 +43,86 @@ const prioritaLabel: Record<string, string> = { bassa: 'Bassa', media: 'Media', 
 const taskStatoLabel: Record<string, string> = { da_fare: 'Da Fare', in_corso: 'In Corso', in_revisione: 'In Revisione', completato: 'Completato' };
 const taskStatoBorder: Record<string, string> = { da_fare: 'border-t-gray-400', in_corso: 'border-t-blue-500', in_revisione: 'border-t-purple-500', completato: 'border-t-green-500' };
 const taskFasi: StatoTask[] = ['da_fare', 'in_corso', 'in_revisione', 'completato'];
+
+/* ── Drag-and-drop helper components ── */
+
+function TaskDroppableColumn({ id, children }: { id: string; children: React.ReactNode }) {
+  const { setNodeRef, isOver } = useDroppable({ id });
+  return (
+    <div
+      ref={setNodeRef}
+      className={`min-h-[60px] transition-colors rounded-lg ${isOver ? 'bg-accent/40' : ''}`}
+    >
+      {children}
+    </div>
+  );
+}
+
+function SortableTaskCard({
+  task,
+  onAdvanceStatus,
+  onDelete,
+}: {
+  task: { id: string; titolo: string; priorita: string; dataScadenza: string; assegnatoNome: string; stato: string; oreStimate?: number | null; oreEffettive?: number | null };
+  onAdvanceStatus: (id: string, stato: StatoTask) => void;
+  onDelete: (id: string) => void;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: task.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.4 : 1,
+    cursor: 'grab',
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...attributes}
+      {...listeners}
+      className={`rounded-lg border p-2.5 bg-background ${isDragging ? 'shadow-lg ring-2 ring-primary/20' : ''}`}
+    >
+      <div className="flex items-start justify-between">
+        <p className="text-sm font-medium">{task.titolo}</p>
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground h-5 w-5 shrink-0"
+            onPointerDown={(e) => e.stopPropagation()}
+          >
+            <MoreHorizontal className="h-3 w-3" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => alert('Demo: azione eseguita!')}>
+              <Pencil className="mr-2 h-3.5 w-3.5" />Modifica
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onAdvanceStatus(task.id, task.stato as StatoTask)}>
+              <Clock className="mr-2 h-3.5 w-3.5" />Avanza Stato
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem className="text-red-600" onClick={() => onDelete(task.id)}>
+              <Trash2 className="mr-2 h-3.5 w-3.5" />Elimina
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+      <div className="flex items-center justify-between mt-2">
+        <Badge variant="secondary" className={`text-xs ${prioritaBadge[task.priorita]}`}>{task.priorita}</Badge>
+        <span className="text-xs text-muted-foreground">{formatDate(task.dataScadenza)}</span>
+      </div>
+      <p className="text-xs text-muted-foreground mt-1">{task.assegnatoNome}</p>
+      {task.oreStimate && <p className="text-xs text-muted-foreground">{task.oreEffettive || 0}/{task.oreStimate}h</p>}
+    </div>
+  );
+}
 
 export default function ProgettiPage() {
   const { user } = useAuth();
@@ -178,6 +275,55 @@ export default function ProgettiPage() {
       alert(res.error);
     }
   };
+
+  // ── Drag-and-drop state for Task Kanban ──
+  const [activeDragTaskId, setActiveDragTaskId] = useState<string | null>(null);
+  const taskSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
+  );
+
+  const activeDragTask = activeDragTaskId ? tasks.find((t) => t.id === activeDragTaskId) : null;
+
+  const handleTaskDragStart = useCallback((event: DragStartEvent) => {
+    setActiveDragTaskId(event.active.id as string);
+  }, []);
+
+  const handleTaskDragEnd = useCallback(async (event: DragEndEvent) => {
+    const { active, over } = event;
+    setActiveDragTaskId(null);
+
+    if (!over) return;
+
+    const taskId = active.id as string;
+    let targetStato: StatoTask | null = null;
+
+    if (taskFasi.includes(over.id as StatoTask)) {
+      targetStato = over.id as StatoTask;
+    } else {
+      // over.id is a task card id — find which stato that task belongs to
+      const overTask = tasks.find((t) => t.id === over.id);
+      if (overTask) {
+        targetStato = overTask.stato as StatoTask;
+      }
+    }
+
+    if (!targetStato) return;
+
+    const draggedTask = tasks.find((t) => t.id === taskId);
+    if (!draggedTask || draggedTask.stato === targetStato) return;
+
+    setSubmitting(true);
+    try {
+      const result = await updateTask(taskId, { stato: targetStato });
+      if (result.ok) {
+        refresh();
+      } else {
+        alert('Errore: ' + ('error' in result ? result.error : 'Errore sconosciuto'));
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  }, [tasks, refresh]);
 
   if (loading) return <div className="p-8 text-center">Caricamento...</div>;
 
@@ -451,54 +597,57 @@ export default function ProgettiPage() {
               </DialogContent>
             </Dialog>
           </div>
-          <div className="grid gap-3 lg:grid-cols-4">
-            {taskFasi.map((fase) => {
-              const faseTasks = projectTasks.filter((t) => t.stato === fase);
-              return (
-                <Card key={fase} className={`border-t-4 ${taskStatoBorder[fase]}`}>
-                  <CardHeader className="p-3 pb-2">
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-xs font-semibold uppercase tracking-wider">{taskStatoLabel[fase]}</CardTitle>
-                      <Badge variant="secondary" className="text-xs">{faseTasks.length}</Badge>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="p-3 pt-0 space-y-2">
-                    {faseTasks.map((task) => (
-                      <div key={task.id} className="rounded-lg border p-2.5 bg-background">
-                        <div className="flex items-start justify-between">
-                          <p className="text-sm font-medium">{task.titolo}</p>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground h-5 w-5 shrink-0">
-                                <MoreHorizontal className="h-3 w-3" />
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => alert('Demo: azione eseguita!')}>
-                                <Pencil className="mr-2 h-3.5 w-3.5" />Modifica
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => handleAdvanceTaskStatus(task.id, task.stato)}>
-                                <Clock className="mr-2 h-3.5 w-3.5" />Avanza Stato
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem className="text-red-600" onClick={() => handleDeleteTask(task.id)}>
-                                <Trash2 className="mr-2 h-3.5 w-3.5" />Elimina
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </div>
-                        <div className="flex items-center justify-between mt-2">
-                          <Badge variant="secondary" className={`text-xs ${prioritaBadge[task.priorita]}`}>{task.priorita}</Badge>
-                          <span className="text-xs text-muted-foreground">{formatDate(task.dataScadenza)}</span>
-                        </div>
-                        <p className="text-xs text-muted-foreground mt-1">{task.assegnatoNome}</p>
-                        {task.oreStimate && <p className="text-xs text-muted-foreground">{task.oreEffettive || 0}/{task.oreStimate}h</p>}
+          <DndContext
+            sensors={taskSensors}
+            collisionDetection={closestCorners}
+            onDragStart={handleTaskDragStart}
+            onDragEnd={handleTaskDragEnd}
+          >
+            <div className="grid gap-3 lg:grid-cols-4">
+              {taskFasi.map((fase) => {
+                const faseTasks = projectTasks.filter((t) => t.stato === fase);
+                return (
+                  <Card key={fase} className={`border-t-4 ${taskStatoBorder[fase]}`}>
+                    <CardHeader className="p-3 pb-2">
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="text-xs font-semibold uppercase tracking-wider">{taskStatoLabel[fase]}</CardTitle>
+                        <Badge variant="secondary" className="text-xs">{faseTasks.length}</Badge>
                       </div>
-                    ))}
-                    {faseTasks.length === 0 && <p className="text-xs text-muted-foreground text-center py-3">—</p>}
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
+                    </CardHeader>
+                    <CardContent className="p-3 pt-0 space-y-2">
+                      <TaskDroppableColumn id={fase}>
+                        <SortableContext items={faseTasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
+                          <div className="space-y-2">
+                            {faseTasks.map((task) => (
+                              <SortableTaskCard
+                                key={task.id}
+                                task={task}
+                                onAdvanceStatus={handleAdvanceTaskStatus}
+                                onDelete={handleDeleteTask}
+                              />
+                            ))}
+                          </div>
+                        </SortableContext>
+                        {faseTasks.length === 0 && <p className="text-xs text-muted-foreground text-center py-3">--</p>}
+                      </TaskDroppableColumn>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+            <DragOverlay>
+              {activeDragTask ? (
+                <div className="rounded-lg border p-2.5 bg-background shadow-xl ring-2 ring-primary/30 opacity-90 w-[200px]">
+                  <p className="text-sm font-medium">{activeDragTask.titolo}</p>
+                  <div className="flex items-center justify-between mt-2">
+                    <Badge variant="secondary" className={`text-xs ${prioritaBadge[activeDragTask.priorita]}`}>{activeDragTask.priorita}</Badge>
+                    <span className="text-xs text-muted-foreground">{formatDate(activeDragTask.dataScadenza)}</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">{activeDragTask.assegnatoNome}</p>
+                </div>
+              ) : null}
+            </DragOverlay>
+          </DndContext>
         </div>
       )}
     </PageContainer>

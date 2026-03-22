@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { PageContainer } from '@/components/layout/page-container';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -20,12 +20,116 @@ import { formatCurrency, formatDate } from '@/lib/utils';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Plus, Target, DollarSign, TrendingUp, Users, Save, MoreHorizontal, Pencil, Trash2, Copy, Download, Search, Eye } from 'lucide-react';
 import type { FaseLead } from '@/lib/types';
+import {
+  DndContext,
+  closestCorners,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragOverlay,
+  useDroppable,
+  type DragEndEvent,
+  type DragStartEvent,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 const faseBadge: Record<string, string> = { nuovo: 'bg-gray-100 text-gray-800', contattato: 'bg-blue-100 text-blue-800', qualificato: 'bg-purple-100 text-purple-800', proposta: 'bg-yellow-100 text-yellow-800', negoziazione: 'bg-orange-100 text-orange-800', vinto: 'bg-green-100 text-green-800', perso: 'bg-red-100 text-red-800' };
 const faseLabel: Record<string, string> = { nuovo: 'Nuovo', contattato: 'Contattato', qualificato: 'Qualificato', proposta: 'Proposta', negoziazione: 'Negoziazione', vinto: 'Vinto', perso: 'Perso' };
 const faseBorderColor: Record<string, string> = { nuovo: 'border-t-gray-400', contattato: 'border-t-blue-500', qualificato: 'border-t-purple-500', proposta: 'border-t-yellow-500', negoziazione: 'border-t-orange-500' };
 const fonteLabel: Record<string, string> = { sito_web: 'Sito Web', referral: 'Referral', fiera: 'Fiera', social: 'Social', cold_call: 'Cold Call', altro: 'Altro' };
 const pipelineFasi: FaseLead[] = ['nuovo', 'contattato', 'qualificato', 'proposta', 'negoziazione'];
+
+/* ── Drag-and-drop helper components ── */
+
+function DroppableColumn({ id, children }: { id: string; children: React.ReactNode }) {
+  const { setNodeRef, isOver } = useDroppable({ id });
+  return (
+    <div
+      ref={setNodeRef}
+      className={`min-h-[60px] transition-colors rounded-lg ${isOver ? 'bg-accent/40' : ''}`}
+    >
+      {children}
+    </div>
+  );
+}
+
+function SortableLeadCard({
+  lead,
+  onDetail,
+  onPhaseChange,
+  onDelete,
+  submitting,
+}: {
+  lead: { id: string; azienda: string; referente: string; valore: number; probabilita: number; assegnatoNome: string; fase: string };
+  onDetail: () => void;
+  onPhaseChange: (id: string, fase: FaseLead) => void;
+  onDelete: (id: string) => void;
+  submitting: boolean;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: lead.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.4 : 1,
+    cursor: 'grab',
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...attributes}
+      {...listeners}
+      className={`rounded-lg border p-2.5 bg-background hover:shadow-sm transition-shadow relative ${isDragging ? 'shadow-lg ring-2 ring-primary/20' : ''}`}
+    >
+      <div className="flex items-start justify-between">
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold truncate">{lead.azienda}</p>
+          <p className="text-xs text-muted-foreground">{lead.referente}</p>
+        </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground h-6 w-6 p-0 shrink-0"
+            onPointerDown={(e) => e.stopPropagation()}
+          >
+            <MoreHorizontal className="h-3.5 w-3.5" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={onDetail}><Eye className="mr-2 h-4 w-4" />Dettagli</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => alert('Demo: azione eseguita!')}><Pencil className="mr-2 h-4 w-4" />Modifica</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => alert('Demo: azione eseguita!')}><Copy className="mr-2 h-4 w-4" />Converti a Cliente</DropdownMenuItem>
+            <DropdownMenuSeparator />
+            {pipelineFasi.filter((f) => f !== lead.fase).map((targetFase) => (
+              <DropdownMenuItem key={targetFase} onClick={() => onPhaseChange(lead.id, targetFase)} disabled={submitting}>
+                <TrendingUp className="mr-2 h-4 w-4" />Sposta a {faseLabel[targetFase]}
+              </DropdownMenuItem>
+            ))}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => onDelete(lead.id)} disabled={submitting} className="text-red-600"><Trash2 className="mr-2 h-4 w-4" />Elimina</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+      <div className="flex items-center justify-between mt-2">
+        <span className="text-sm font-bold text-green-700">{formatCurrency(lead.valore)}</span>
+        <span className="text-xs text-muted-foreground">{lead.probabilita}%</span>
+      </div>
+      <p className="text-xs text-muted-foreground mt-1">{lead.assegnatoNome}</p>
+    </div>
+  );
+}
 
 export default function LeadPage() {
   const { user } = useAuth();
@@ -59,6 +163,59 @@ export default function LeadPage() {
     setFormValore('');
     setFormFonte('sito_web');
   };
+
+  // ── Drag-and-drop state ──
+  const [activeDragId, setActiveDragId] = useState<string | null>(null);
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
+  );
+
+  const activeDragLead = activeDragId ? leads.find((l) => l.id === activeDragId) : null;
+
+  const handleDragStart = useCallback((event: DragStartEvent) => {
+    setActiveDragId(event.active.id as string);
+  }, []);
+
+  const handleDragEnd = useCallback(async (event: DragEndEvent) => {
+    const { active, over } = event;
+    setActiveDragId(null);
+
+    if (!over) return;
+
+    const leadId = active.id as string;
+    // The "over" target can be a column droppable or another card inside a column.
+    // We resolve the target column (fase) by checking if the over.id is a pipeline fase,
+    // otherwise we find which fase the "over" card belongs to.
+    let targetFase: FaseLead | null = null;
+
+    if (pipelineFasi.includes(over.id as FaseLead)) {
+      targetFase = over.id as FaseLead;
+    } else {
+      // over.id is a lead card id — find which fase that lead belongs to
+      const overLead = leads.find((l) => l.id === over.id);
+      if (overLead) {
+        targetFase = overLead.fase as FaseLead;
+      }
+    }
+
+    if (!targetFase) return;
+
+    const draggedLead = leads.find((l) => l.id === leadId);
+    if (!draggedLead || draggedLead.fase === targetFase) return;
+
+    // Optimistically update by calling the server action
+    setSubmitting(true);
+    try {
+      const result = await updateLead(leadId, { fase: targetFase });
+      if (result.ok) {
+        refresh();
+      } else {
+        alert('Errore: ' + ('error' in result ? result.error : 'Errore sconosciuto'));
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  }, [leads, refresh]);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -226,59 +383,60 @@ export default function LeadPage() {
         <TabsList><TabsTrigger value="pipeline">Pipeline</TabsTrigger><TabsTrigger value="lista">Lista</TabsTrigger></TabsList>
 
         <TabsContent value="pipeline">
-          <div className="grid gap-3 lg:grid-cols-5">
-            {pipelineFasi.map((fase) => {
-              const faseLeads = leads.filter((l) => l.fase === fase);
-              return (
-                <Card key={fase} className={`border-t-4 ${faseBorderColor[fase]}`}>
-                  <CardHeader className="p-3 pb-2">
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-xs font-semibold uppercase tracking-wider">{faseLabel[fase]}</CardTitle>
-                      <Badge variant="secondary" className="text-xs">{faseLeads.length}</Badge>
-                    </div>
-                    <p className="text-xs text-muted-foreground">{formatCurrency(faseLeads.reduce((s, l) => s + l.valore, 0))}</p>
-                  </CardHeader>
-                  <CardContent className="p-3 pt-0 space-y-2">
-                    {faseLeads.map((lead) => (
-                      <div key={lead.id} className="rounded-lg border p-2.5 bg-background hover:shadow-sm transition-shadow relative">
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold truncate">{lead.azienda}</p>
-                            <p className="text-xs text-muted-foreground">{lead.referente}</p>
-                          </div>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground h-6 w-6 p-0 shrink-0">
-                              <MoreHorizontal className="h-3.5 w-3.5" />
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => { setDetailLead(lead); setDetailOpen(true); }}><Eye className="mr-2 h-4 w-4" />Dettagli</DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => alert('Demo: azione eseguita!')}><Pencil className="mr-2 h-4 w-4" />Modifica</DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => alert('Demo: azione eseguita!')}><Copy className="mr-2 h-4 w-4" />Converti a Cliente</DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              {/* Phase change options */}
-                              {pipelineFasi.filter((f) => f !== fase).map((targetFase) => (
-                                <DropdownMenuItem key={targetFase} onClick={() => handlePhaseChange(lead.id, targetFase)} disabled={submitting}>
-                                  <TrendingUp className="mr-2 h-4 w-4" />Sposta a {faseLabel[targetFase]}
-                                </DropdownMenuItem>
-                              ))}
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem onClick={() => handleDelete(lead.id)} disabled={submitting} className="text-red-600"><Trash2 className="mr-2 h-4 w-4" />Elimina</DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </div>
-                        <div className="flex items-center justify-between mt-2">
-                          <span className="text-sm font-bold text-green-700">{formatCurrency(lead.valore)}</span>
-                          <span className="text-xs text-muted-foreground">{lead.probabilita}%</span>
-                        </div>
-                        <p className="text-xs text-muted-foreground mt-1">{lead.assegnatoNome}</p>
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCorners}
+            onDragStart={handleDragStart}
+            onDragEnd={handleDragEnd}
+          >
+            <div className="grid gap-3 lg:grid-cols-5">
+              {pipelineFasi.map((fase) => {
+                const faseLeads = leads.filter((l) => l.fase === fase);
+                return (
+                  <Card key={fase} className={`border-t-4 ${faseBorderColor[fase]}`}>
+                    <CardHeader className="p-3 pb-2">
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="text-xs font-semibold uppercase tracking-wider">{faseLabel[fase]}</CardTitle>
+                        <Badge variant="secondary" className="text-xs">{faseLeads.length}</Badge>
                       </div>
-                    ))}
-                    {faseLeads.length === 0 && <p className="text-xs text-muted-foreground text-center py-4">Nessun lead</p>}
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
+                      <p className="text-xs text-muted-foreground">{formatCurrency(faseLeads.reduce((s, l) => s + l.valore, 0))}</p>
+                    </CardHeader>
+                    <CardContent className="p-3 pt-0 space-y-2">
+                      <DroppableColumn id={fase}>
+                        <SortableContext items={faseLeads.map((l) => l.id)} strategy={verticalListSortingStrategy}>
+                          <div className="space-y-2">
+                            {faseLeads.map((lead) => (
+                              <SortableLeadCard
+                                key={lead.id}
+                                lead={lead}
+                                onDetail={() => { setDetailLead(lead); setDetailOpen(true); }}
+                                onPhaseChange={handlePhaseChange}
+                                onDelete={handleDelete}
+                                submitting={submitting}
+                              />
+                            ))}
+                          </div>
+                        </SortableContext>
+                        {faseLeads.length === 0 && <p className="text-xs text-muted-foreground text-center py-4">Nessun lead</p>}
+                      </DroppableColumn>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+            <DragOverlay>
+              {activeDragLead ? (
+                <div className="rounded-lg border p-2.5 bg-background shadow-xl ring-2 ring-primary/30 opacity-90 w-[200px]">
+                  <p className="text-sm font-semibold truncate">{activeDragLead.azienda}</p>
+                  <p className="text-xs text-muted-foreground">{activeDragLead.referente}</p>
+                  <div className="flex items-center justify-between mt-2">
+                    <span className="text-sm font-bold text-green-700">{formatCurrency(activeDragLead.valore)}</span>
+                    <span className="text-xs text-muted-foreground">{activeDragLead.probabilita}%</span>
+                  </div>
+                </div>
+              ) : null}
+            </DragOverlay>
+          </DndContext>
         </TabsContent>
 
         <TabsContent value="lista" className="space-y-4">
