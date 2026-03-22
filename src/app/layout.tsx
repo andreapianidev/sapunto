@@ -28,10 +28,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="it">
-      <body
-        className={`${inter.variable} ${jetbrainsMono.variable} antialiased`}
-      >
+    <html lang="it" className={`${inter.variable} ${jetbrainsMono.variable}`}>
+      <body className="antialiased">
+
         <AuthProvider>
           <SidebarProvider>
             <TooltipProvider>
