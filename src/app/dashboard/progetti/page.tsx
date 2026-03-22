@@ -11,7 +11,7 @@ import { Label } from '@/components/ui/label';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
-import { fetchProgetti, fetchTasks } from '@/lib/actions/data';
+import { fetchProgetti, fetchTasks, createProgetto, updateProgetto, deleteProgetto, createTask, updateTask, deleteTask } from '@/lib/actions/data';
 import { useServerData } from '@/lib/hooks/use-server-data';
 import { useAuth } from '@/lib/auth-context';
 import { formatCurrency, formatDate } from '@/lib/utils';
@@ -30,7 +30,7 @@ const taskFasi: StatoTask[] = ['da_fare', 'in_corso', 'in_revisione', 'completat
 export default function ProgettiPage() {
   const { user } = useAuth();
   const tenantId = user?.tenantId || 't-1';
-  const [allData, loading] = useServerData(
+  const [allData, loading, refresh] = useServerData(
     () => Promise.all([fetchProgetti(tenantId), fetchTasks(tenantId)]),
     [[], []]
   );
@@ -42,6 +42,40 @@ export default function ProgettiPage() {
   const [filterStato, setFilterStato] = useState<string>('tutti');
   const [detailProject, setDetailProject] = useState<Progetto | null>(null);
   const [newTaskOpen, setNewTaskOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+
+  // New project form state
+  const [newProjectOpen, setNewProjectOpen] = useState(false);
+  const [newProjNome, setNewProjNome] = useState('');
+  const [newProjDescrizione, setNewProjDescrizione] = useState('');
+  const [newProjDataInizio, setNewProjDataInizio] = useState('');
+  const [newProjDataFine, setNewProjDataFine] = useState('');
+  const [newProjBudget, setNewProjBudget] = useState('');
+
+  const resetNewProjectForm = () => {
+    setNewProjNome('');
+    setNewProjDescrizione('');
+    setNewProjDataInizio('');
+    setNewProjDataFine('');
+    setNewProjBudget('');
+  };
+
+  // New task form state
+  const [newTaskTitolo, setNewTaskTitolo] = useState('');
+  const [newTaskDescrizione, setNewTaskDescrizione] = useState('');
+  const [newTaskPriorita, setNewTaskPriorita] = useState<'bassa' | 'media' | 'alta' | 'urgente'>('media');
+  const [newTaskAssegnato, setNewTaskAssegnato] = useState('');
+  const [newTaskScadenza, setNewTaskScadenza] = useState('');
+  const [newTaskOre, setNewTaskOre] = useState('');
+
+  const resetNewTaskForm = () => {
+    setNewTaskTitolo('');
+    setNewTaskDescrizione('');
+    setNewTaskPriorita('media');
+    setNewTaskAssegnato('');
+    setNewTaskScadenza('');
+    setNewTaskOre('');
+  };
 
   const budgetTotale = progetti.reduce((s, p) => s + (p.budget || 0), 0);
 
@@ -53,9 +87,97 @@ export default function ProgettiPage() {
       const matchStato = filterStato === 'tutti' || p.stato === filterStato;
       return matchSearch && matchStato;
     });
-  }, [searchTerm, filterStato]);
+  }, [progetti, searchTerm, filterStato]);
 
   const projectTasks = selectedProject ? tasks.filter((t) => t.progettoId === selectedProject) : [];
+
+  // --- CRUD handlers ---
+  const handleCreateProject = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    const res = await createProgetto({
+      tenantId,
+      nome: newProjNome,
+      descrizione: newProjDescrizione || '',
+      stato: 'pianificato',
+      dataInizio: newProjDataInizio || new Date().toISOString().split('T')[0],
+      dataFinePrevista: newProjDataFine || '',
+      budget: newProjBudget || undefined,
+      responsabileId: user?.id || '',
+      responsabileNome: user?.nome || '',
+    });
+    setSubmitting(false);
+    if (res.ok) {
+      resetNewProjectForm();
+      setNewProjectOpen(false);
+      refresh();
+    } else {
+      alert(res.error);
+    }
+  };
+
+  const handleDeleteProject = async (id: string) => {
+    setSubmitting(true);
+    const res = await deleteProgetto(id);
+    setSubmitting(false);
+    if (res.ok) {
+      if (selectedProject === id) setSelectedProject(null);
+      refresh();
+    } else {
+      alert(res.error);
+    }
+  };
+
+  const handleCreateTask = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedProject) return;
+    setSubmitting(true);
+    const res = await createTask({
+      tenantId,
+      progettoId: selectedProject,
+      titolo: newTaskTitolo,
+      descrizione: newTaskDescrizione || undefined,
+      stato: 'da_fare',
+      priorita: newTaskPriorita,
+      assegnatoA: '',
+      assegnatoNome: newTaskAssegnato || '',
+      dataScadenza: newTaskScadenza || '',
+      oreStimate: newTaskOre ? parseFloat(newTaskOre) : undefined,
+    });
+    setSubmitting(false);
+    if (res.ok) {
+      resetNewTaskForm();
+      setNewTaskOpen(false);
+      refresh();
+    } else {
+      alert(res.error);
+    }
+  };
+
+  const handleDeleteTask = async (id: string) => {
+    setSubmitting(true);
+    const res = await deleteTask(id);
+    setSubmitting(false);
+    if (res.ok) {
+      refresh();
+    } else {
+      alert(res.error);
+    }
+  };
+
+  const handleAdvanceTaskStatus = async (taskId: string, currentStato: StatoTask) => {
+    const currentIdx = taskFasi.indexOf(currentStato);
+    if (currentIdx < 0 || currentIdx >= taskFasi.length - 1) return;
+    const nextStato = taskFasi[currentIdx + 1];
+    setSubmitting(true);
+    const res = await updateTask(taskId, { stato: nextStato });
+    setSubmitting(false);
+    if (res.ok) {
+      refresh();
+    } else {
+      alert(res.error);
+    }
+  };
 
   if (loading) return <div className="p-8 text-center">Caricamento...</div>;
 
@@ -63,13 +185,13 @@ export default function ProgettiPage() {
     <PageContainer title="Progetti" description="Gestione progetti e task" actions={
       <div className="flex items-center gap-2">
       <Button variant="outline" size="sm" onClick={() => alert('Demo: azione eseguita!')}><Download className="mr-2 h-4 w-4" />Esporta</Button>
-      <Dialog>
+      <Dialog open={newProjectOpen} onOpenChange={(open) => { setNewProjectOpen(open); if (!open) resetNewProjectForm(); }}>
         <DialogTrigger className="inline-flex items-center justify-center rounded-md text-sm font-medium h-8 px-3 bg-[#1a2332] text-white hover:bg-[#1a2332]/90"><Plus className="mr-2 h-4 w-4" />Nuovo Progetto</DialogTrigger>
         <DialogContent className="sm:max-w-md">
           <DialogHeader><DialogTitle>Nuovo Progetto</DialogTitle></DialogHeader>
-          <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); alert('Demo: progetto creato!'); }}>
-            <div className="grid gap-3"><div><Label>Nome Progetto *</Label><Input placeholder="Nome del progetto" className="mt-1" required /></div><div><Label>Descrizione</Label><Input placeholder="Descrizione breve" className="mt-1" /></div><div className="grid grid-cols-2 gap-3"><div><Label>Data Inizio</Label><Input type="date" className="mt-1" /></div><div><Label>Data Fine</Label><Input type="date" className="mt-1" /></div></div><div><Label>Budget</Label><Input type="number" step="0.01" placeholder="0,00" className="mt-1" /></div></div>
-            <div className="flex justify-end"><Button type="submit" className="bg-[#1a2332] hover:bg-[#1a2332]/90"><Save className="mr-2 h-4 w-4" />Crea</Button></div>
+          <form className="space-y-4" onSubmit={handleCreateProject}>
+            <div className="grid gap-3"><div><Label>Nome Progetto *</Label><Input placeholder="Nome del progetto" className="mt-1" required value={newProjNome} onChange={(e) => setNewProjNome(e.target.value)} /></div><div><Label>Descrizione</Label><Input placeholder="Descrizione breve" className="mt-1" value={newProjDescrizione} onChange={(e) => setNewProjDescrizione(e.target.value)} /></div><div className="grid grid-cols-2 gap-3"><div><Label>Data Inizio</Label><Input type="date" className="mt-1" value={newProjDataInizio} onChange={(e) => setNewProjDataInizio(e.target.value)} /></div><div><Label>Data Fine</Label><Input type="date" className="mt-1" value={newProjDataFine} onChange={(e) => setNewProjDataFine(e.target.value)} /></div></div><div><Label>Budget</Label><Input type="number" step="0.01" placeholder="0,00" className="mt-1" value={newProjBudget} onChange={(e) => setNewProjBudget(e.target.value)} /></div></div>
+            <div className="flex justify-end"><Button type="submit" className="bg-[#1a2332] hover:bg-[#1a2332]/90" disabled={submitting}><Save className="mr-2 h-4 w-4" />{submitting ? 'Salvataggio...' : 'Crea'}</Button></div>
           </form>
         </DialogContent>
       </Dialog>
@@ -143,7 +265,7 @@ export default function ProgettiPage() {
                           <Pencil className="mr-2 h-3.5 w-3.5" />Modifica
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem className="text-red-600" onClick={(e) => { e.stopPropagation(); alert('Demo: azione eseguita!'); }}>
+                        <DropdownMenuItem className="text-red-600" onClick={(e) => { e.stopPropagation(); handleDeleteProject(p.id); }}>
                           <Trash2 className="mr-2 h-3.5 w-3.5" />Elimina
                         </DropdownMenuItem>
                       </DropdownMenuContent>
@@ -277,26 +399,26 @@ export default function ProgettiPage() {
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-lg font-semibold">Task — {progetti.find((p) => p.id === selectedProject)?.nome}</h3>
             {/* New Task Dialog */}
-            <Dialog open={newTaskOpen} onOpenChange={setNewTaskOpen}>
+            <Dialog open={newTaskOpen} onOpenChange={(open) => { setNewTaskOpen(open); if (!open) resetNewTaskForm(); }}>
               <DialogTrigger className="inline-flex items-center justify-center rounded-md text-sm font-medium h-8 px-3 bg-[#1a2332] text-white hover:bg-[#1a2332]/90">
                 <Plus className="mr-2 h-4 w-4" />Nuovo Task
               </DialogTrigger>
               <DialogContent className="sm:max-w-md">
                 <DialogHeader><DialogTitle>Nuovo Task</DialogTitle></DialogHeader>
-                <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); setNewTaskOpen(false); alert('Demo: task creato!'); }}>
+                <form className="space-y-4" onSubmit={handleCreateTask}>
                   <div className="grid gap-3">
                     <div>
                       <Label>Titolo *</Label>
-                      <Input placeholder="Titolo del task" className="mt-1" required />
+                      <Input placeholder="Titolo del task" className="mt-1" required value={newTaskTitolo} onChange={(e) => setNewTaskTitolo(e.target.value)} />
                     </div>
                     <div>
                       <Label>Descrizione</Label>
-                      <textarea className="mt-1 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm" rows={3} placeholder="Descrizione del task..." />
+                      <textarea className="mt-1 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm" rows={3} placeholder="Descrizione del task..." value={newTaskDescrizione} onChange={(e) => setNewTaskDescrizione(e.target.value)} />
                     </div>
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <Label>Priorità</Label>
-                        <Select defaultValue="media">
+                        <Label>Priorita</Label>
+                        <Select value={newTaskPriorita} onValueChange={(v) => setNewTaskPriorita(v as 'bassa' | 'media' | 'alta' | 'urgente')}>
                           <SelectTrigger className="mt-1 w-full"><SelectValue /></SelectTrigger>
                           <SelectContent>
                             <SelectItem value="bassa">Bassa</SelectItem>
@@ -308,22 +430,22 @@ export default function ProgettiPage() {
                       </div>
                       <div>
                         <Label>Assegnato a</Label>
-                        <Input placeholder="Nome operatore" className="mt-1" />
+                        <Input placeholder="Nome operatore" className="mt-1" value={newTaskAssegnato} onChange={(e) => setNewTaskAssegnato(e.target.value)} />
                       </div>
                     </div>
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <Label>Data Scadenza</Label>
-                        <Input type="date" className="mt-1" />
+                        <Input type="date" className="mt-1" value={newTaskScadenza} onChange={(e) => setNewTaskScadenza(e.target.value)} />
                       </div>
                       <div>
                         <Label>Ore Stimate</Label>
-                        <Input type="number" step="0.5" min="0" placeholder="0" className="mt-1" />
+                        <Input type="number" step="0.5" min="0" placeholder="0" className="mt-1" value={newTaskOre} onChange={(e) => setNewTaskOre(e.target.value)} />
                       </div>
                     </div>
                   </div>
                   <div className="flex justify-end">
-                    <Button type="submit" className="bg-[#1a2332] hover:bg-[#1a2332]/90"><Save className="mr-2 h-4 w-4" />Crea Task</Button>
+                    <Button type="submit" className="bg-[#1a2332] hover:bg-[#1a2332]/90" disabled={submitting}><Save className="mr-2 h-4 w-4" />{submitting ? 'Salvataggio...' : 'Crea Task'}</Button>
                   </div>
                 </form>
               </DialogContent>
@@ -353,11 +475,11 @@ export default function ProgettiPage() {
                               <DropdownMenuItem onClick={() => alert('Demo: azione eseguita!')}>
                                 <Pencil className="mr-2 h-3.5 w-3.5" />Modifica
                               </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => alert('Demo: azione eseguita!')}>
-                                <Clock className="mr-2 h-3.5 w-3.5" />Cambia Stato
+                              <DropdownMenuItem onClick={() => handleAdvanceTaskStatus(task.id, task.stato)}>
+                                <Clock className="mr-2 h-3.5 w-3.5" />Avanza Stato
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
-                              <DropdownMenuItem className="text-red-600" onClick={() => alert('Demo: azione eseguita!')}>
+                              <DropdownMenuItem className="text-red-600" onClick={() => handleDeleteTask(task.id)}>
                                 <Trash2 className="mr-2 h-3.5 w-3.5" />Elimina
                               </DropdownMenuItem>
                             </DropdownMenuContent>

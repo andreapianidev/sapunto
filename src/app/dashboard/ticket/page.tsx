@@ -18,7 +18,7 @@ import {
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Pagination } from '@/components/ui/pagination';
-import { fetchTickets } from '@/lib/actions/data';
+import { fetchTickets, createTicket, updateTicket, deleteTicket } from '@/lib/actions/data';
 import { useServerData } from '@/lib/hooks/use-server-data';
 import { useAuth } from '@/lib/auth-context';
 import { formatDate, formatDateTime } from '@/lib/utils';
@@ -44,7 +44,7 @@ const prioritaBadge: Record<string, string> = {
 export default function TicketPage() {
   const { user } = useAuth();
   const tenantId = user?.tenantId || 't-1';
-  const [tickets, loading] = useServerData(() => fetchTickets(tenantId), []);
+  const [tickets, loading, refresh] = useServerData(() => fetchTickets(tenantId), []);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStato, setFilterStato] = useState<string>('tutti');
@@ -53,6 +53,21 @@ export default function TicketPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [submitting, setSubmitting] = useState(false);
+
+  // New ticket form state
+  const [newTicketOpen, setNewTicketOpen] = useState(false);
+  const [newOggetto, setNewOggetto] = useState('');
+  const [newCategoria, setNewCategoria] = useState('Assistenza Tecnica');
+  const [newPriorita, setNewPriorita] = useState<'bassa' | 'media' | 'alta' | 'critica'>('media');
+  const [newDescrizione, setNewDescrizione] = useState('');
+
+  const resetNewTicketForm = () => {
+    setNewOggetto('');
+    setNewCategoria('Assistenza Tecnica');
+    setNewPriorita('media');
+    setNewDescrizione('');
+  };
 
   const filtered = useMemo(() => {
     return tickets.filter((t) => {
@@ -61,7 +76,7 @@ export default function TicketPage() {
       const matchPriorita = filterPriorita === 'tutte' || t.priorita === filterPriorita;
       return matchSearch && matchStato && matchPriorita;
     });
-  }, [searchTerm, filterStato, filterPriorita]);
+  }, [tickets, searchTerm, filterStato, filterPriorita]);
 
   // Reset to page 1 when filters change
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
@@ -113,6 +128,75 @@ export default function TicketPage() {
     setCurrentPage(1);
   }, []);
 
+  // --- CRUD handlers ---
+  const handleCreateTicket = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    const res = await createTicket({
+      tenantId,
+      oggetto: newOggetto,
+      descrizione: newDescrizione,
+      priorita: newPriorita,
+      stato: 'aperto',
+      categoria: newCategoria,
+    });
+    setSubmitting(false);
+    if (res.ok) {
+      resetNewTicketForm();
+      setNewTicketOpen(false);
+      refresh();
+    } else {
+      alert(res.error);
+    }
+  };
+
+  const handleDeleteTicket = async (id: string) => {
+    setSubmitting(true);
+    const res = await deleteTicket(id);
+    setSubmitting(false);
+    if (res.ok) {
+      if (selectedTicket?.id === id) setSelectedTicket(null);
+      refresh();
+    } else {
+      alert(res.error);
+    }
+  };
+
+  const handleCloseTicket = async (id: string) => {
+    setSubmitting(true);
+    const res = await updateTicket(id, { stato: 'chiuso', dataChiusura: new Date().toISOString().split('T')[0] });
+    setSubmitting(false);
+    if (res.ok) {
+      if (selectedTicket?.id === id) setSelectedTicket({ ...selectedTicket, stato: 'chiuso' });
+      refresh();
+    } else {
+      alert(res.error);
+    }
+  };
+
+  const handleBulkClose = async () => {
+    setSubmitting(true);
+    const ids = Array.from(selectedIds);
+    for (const id of ids) {
+      await updateTicket(id, { stato: 'chiuso', dataChiusura: new Date().toISOString().split('T')[0] });
+    }
+    setSubmitting(false);
+    clearSelection();
+    refresh();
+  };
+
+  const handleBulkDelete = async () => {
+    setSubmitting(true);
+    const ids = Array.from(selectedIds);
+    for (const id of ids) {
+      await deleteTicket(id);
+    }
+    setSubmitting(false);
+    clearSelection();
+    setSelectedTicket(null);
+    refresh();
+  };
+
   if (loading) return <div className="p-8 text-center">Caricamento...</div>;
 
   const stats = {
@@ -129,7 +213,7 @@ export default function TicketPage() {
       actions={
         <div className="flex items-center gap-2">
         <Button variant="outline" size="sm" onClick={() => alert('Demo: azione eseguita!')}><Download className="mr-2 h-4 w-4" />Export CSV</Button>
-        <Dialog>
+        <Dialog open={newTicketOpen} onOpenChange={(open) => { setNewTicketOpen(open); if (!open) resetNewTicketForm(); }}>
           <DialogTrigger className="inline-flex items-center justify-center rounded-md text-sm font-medium h-8 px-3 bg-[#1a2332] text-white hover:bg-[#1a2332]/90">
             <Plus className="mr-2 h-4 w-4" />
             Nuovo Ticket
@@ -138,15 +222,15 @@ export default function TicketPage() {
             <DialogHeader>
               <DialogTitle>Nuovo Ticket</DialogTitle>
             </DialogHeader>
-            <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); alert('Demo: ticket aperto!'); }}>
+            <form className="space-y-4" onSubmit={handleCreateTicket}>
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="sm:col-span-2">
                   <Label>Oggetto *</Label>
-                  <Input placeholder="Descrivi brevemente il problema" className="mt-1" required />
+                  <Input placeholder="Descrivi brevemente il problema" className="mt-1" required value={newOggetto} onChange={(e) => setNewOggetto(e.target.value)} />
                 </div>
                 <div>
                   <Label>Categoria</Label>
-                  <Select defaultValue="Assistenza Tecnica">
+                  <Select value={newCategoria} onValueChange={(v) => { if (v) setNewCategoria(v); }}>
                     <SelectTrigger className="mt-1 w-full"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="Assistenza Tecnica">Assistenza Tecnica</SelectItem>
@@ -157,8 +241,8 @@ export default function TicketPage() {
                   </Select>
                 </div>
                 <div>
-                  <Label>Priorità</Label>
-                  <Select defaultValue="media">
+                  <Label>Priorita</Label>
+                  <Select value={newPriorita} onValueChange={(v) => setNewPriorita(v as 'bassa' | 'media' | 'alta' | 'critica')}>
                     <SelectTrigger className="mt-1 w-full"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="bassa">Bassa</SelectItem>
@@ -170,11 +254,11 @@ export default function TicketPage() {
                 </div>
                 <div className="sm:col-span-2">
                   <Label>Descrizione *</Label>
-                  <textarea className="mt-1 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm" rows={4} placeholder="Descrivi il problema in dettaglio..." required />
+                  <textarea className="mt-1 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm" rows={4} placeholder="Descrivi il problema in dettaglio..." required value={newDescrizione} onChange={(e) => setNewDescrizione(e.target.value)} />
                 </div>
               </div>
               <div className="flex justify-end">
-                <Button type="submit" className="bg-[#1a2332] hover:bg-[#1a2332]/90">Apri Ticket</Button>
+                <Button type="submit" className="bg-[#1a2332] hover:bg-[#1a2332]/90" disabled={submitting}>{submitting ? 'Salvataggio...' : 'Apri Ticket'}</Button>
               </div>
             </form>
           </DialogContent>
@@ -222,7 +306,7 @@ export default function TicketPage() {
               </SelectContent>
             </Select>
             <Select value={filterPriorita} onValueChange={(v) => { if (v) { setFilterPriorita(v); setCurrentPage(1); } }}>
-              <SelectTrigger className="w-[160px]"><SelectValue placeholder="Priorità" /></SelectTrigger>
+              <SelectTrigger className="w-[160px]"><SelectValue placeholder="Priorita" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="tutte">Tutte</SelectItem>
                 <SelectItem value="bassa">Bassa</SelectItem>
@@ -247,13 +331,13 @@ export default function TicketPage() {
                 </Button>
               </div>
               <div className="flex items-center gap-2 ml-auto">
-                <Button size="sm" variant="default" className="bg-[#1a2332] hover:bg-[#1a2332]/90" onClick={() => alert('Demo: ticket chiusi!')}>
+                <Button size="sm" variant="default" className="bg-[#1a2332] hover:bg-[#1a2332]/90" disabled={submitting} onClick={handleBulkClose}>
                   <CheckCircle className="mr-2 h-4 w-4" />
-                  Chiudi selezionati
+                  {submitting ? 'Operazione...' : 'Chiudi selezionati'}
                 </Button>
-                <Button size="sm" variant="destructive" onClick={() => alert('Demo: ticket eliminati!')}>
+                <Button size="sm" variant="destructive" disabled={submitting} onClick={handleBulkDelete}>
                   <Trash2 className="mr-2 h-4 w-4" />
-                  Elimina selezionati
+                  {submitting ? 'Operazione...' : 'Elimina selezionati'}
                 </Button>
                 <Button size="sm" variant="outline" onClick={() => alert('Demo: ticket esportati!')}>
                   <Download className="mr-2 h-4 w-4" />
@@ -282,7 +366,7 @@ export default function TicketPage() {
                   </TableHead>
                   <TableHead>Ticket</TableHead>
                   <TableHead className="hidden md:table-cell">Cliente</TableHead>
-                  <TableHead>Priorità</TableHead>
+                  <TableHead>Priorita</TableHead>
                   <TableHead>Stato</TableHead>
                   <TableHead className="text-center hidden md:table-cell">Risp.</TableHead>
                   <TableHead className="w-[50px]">Azioni</TableHead>
@@ -303,11 +387,11 @@ export default function TicketPage() {
                       <p className="font-medium text-sm">{t.numero}</p>
                       <p className="text-xs text-muted-foreground truncate max-w-[200px]">{t.oggetto}</p>
                     </TableCell>
-                    <TableCell className="hidden md:table-cell text-sm">{t.clienteNome || '—'}</TableCell>
+                    <TableCell className="hidden md:table-cell text-sm">{t.clienteNome || '\u2014'}</TableCell>
                     <TableCell><Badge variant="secondary" className={`text-xs ${prioritaBadge[t.priorita]}`}>{t.priorita}</Badge></TableCell>
                     <TableCell><Badge variant="secondary" className={`text-xs ${statoBadge[t.stato]}`}>{t.stato.replace('_', ' ')}</Badge></TableCell>
                     <TableCell className="text-center hidden md:table-cell text-sm">{t.risposte.length}</TableCell>
-                    <TableCell><DropdownMenu><DropdownMenuTrigger className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground h-8 w-8 p-0" onClick={(e) => e.stopPropagation()}><MoreHorizontal className="h-4 w-4" /></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem onClick={(e) => { e.stopPropagation(); alert('Demo: azione eseguita!'); }}><Pencil className="mr-2 h-4 w-4" />Modifica</DropdownMenuItem><DropdownMenuItem onClick={(e) => { e.stopPropagation(); alert('Demo: azione eseguita!'); }}><CheckCircle className="mr-2 h-4 w-4" />Chiudi Ticket</DropdownMenuItem><DropdownMenuSeparator /><DropdownMenuItem onClick={(e) => { e.stopPropagation(); alert('Demo: azione eseguita!'); }} className="text-red-600"><Trash2 className="mr-2 h-4 w-4" />Elimina</DropdownMenuItem></DropdownMenuContent></DropdownMenu></TableCell>
+                    <TableCell><DropdownMenu><DropdownMenuTrigger className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground h-8 w-8 p-0" onClick={(e) => e.stopPropagation()}><MoreHorizontal className="h-4 w-4" /></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem onClick={(e) => { e.stopPropagation(); alert('Demo: azione eseguita!'); }}><Pencil className="mr-2 h-4 w-4" />Modifica</DropdownMenuItem><DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleCloseTicket(t.id); }}><CheckCircle className="mr-2 h-4 w-4" />Chiudi Ticket</DropdownMenuItem><DropdownMenuSeparator /><DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleDeleteTicket(t.id); }} className="text-red-600"><Trash2 className="mr-2 h-4 w-4" />Elimina</DropdownMenuItem></DropdownMenuContent></DropdownMenu></TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -338,7 +422,7 @@ export default function TicketPage() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="text-sm text-muted-foreground">
-                  <p><strong>Cliente:</strong> {selectedTicket.clienteNome || '—'}</p>
+                  <p><strong>Cliente:</strong> {selectedTicket.clienteNome || '\u2014'}</p>
                   <p><strong>Assegnato:</strong> {selectedTicket.assegnatoNome || 'Non assegnato'}</p>
                   <p><strong>Aperto il:</strong> {formatDate(selectedTicket.dataApertura)}</p>
                 </div>
