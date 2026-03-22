@@ -1108,7 +1108,7 @@ export default function LandingPage() {
                   </ul>
 
                   <Link
-                    href="/login"
+                    href={`/checkout?piano=${piano.id}`}
                     className={`w-full inline-flex items-center justify-center gap-2 rounded-xl px-6 py-4 text-[14px] font-bold transition-all duration-300 ${
                       piano.highlight
                         ? 'bg-white text-[#1a2332] hover:bg-gray-100 shadow-lg'
@@ -1126,14 +1126,19 @@ export default function LandingPage() {
           {/* Payment Methods */}
           <div className="mt-20 text-center">
             <p className="text-[13px] text-gray-400 mb-5 font-medium uppercase tracking-wider">Metodi di pagamento accettati</p>
-            <div className="flex items-center justify-center gap-10">
+            <div className="flex items-center justify-center gap-10 flex-wrap">
+              <div className="flex items-center gap-3 text-gray-400">
+                <CreditCard className="h-7 w-7" />
+                <span className="text-[14px] font-semibold">NexiPay</span>
+              </div>
+              <div className="w-px h-8 bg-gray-200 hidden sm:block" />
               <div className="flex items-center gap-3 text-gray-400">
                 <svg viewBox="0 0 24 24" className="h-8 w-8" fill="currentColor">
                   <path d="M7.076 21.337H2.47a.641.641 0 0 1-.633-.74L4.944.901C5.026.382 5.474 0 5.998 0h7.46c2.57 0 4.578.543 5.69 1.81 1.01 1.15 1.304 2.42 1.012 4.287-.023.143-.047.288-.077.437-.983 5.05-4.349 6.797-8.647 6.797H9.283c-.413 0-.764.306-.828.72l-.848 5.36-.241 1.527a.433.433 0 0 1-.29.399z" />
                 </svg>
                 <span className="text-[14px] font-semibold">PayPal</span>
               </div>
-              <div className="w-px h-8 bg-gray-200" />
+              <div className="w-px h-8 bg-gray-200 hidden sm:block" />
               <div className="flex items-center gap-3 text-gray-400">
                 <Building className="h-7 w-7" />
                 <span className="text-[14px] font-semibold">Bonifico Bancario</span>

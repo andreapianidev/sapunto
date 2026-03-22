@@ -1,5 +1,5 @@
 import { db } from './index';
-import { eq } from 'drizzle-orm';
+import { eq, desc } from 'drizzle-orm';
 import * as schema from './schema';
 
 // Helper to convert numeric strings back to numbers
@@ -15,6 +15,7 @@ export async function getPiani() {
     ...r,
     prezzoMensile: numericToNumber(r.prezzoMensile),
     prezzoAnnuale: numericToNumber(r.prezzoAnnuale),
+    costoUtenteAggiuntivo: numericToNumber(r.costoUtenteAggiuntivo),
   }));
 }
 
@@ -28,6 +29,12 @@ export async function getTenants() {
 export async function getTenantById(id: string) {
   const rows = await db.select().from(schema.tenants).where(eq(schema.tenants.id, id));
   return rows[0] ?? null;
+}
+
+export async function updateTenantPiano(tenantId: string, piano: 'express' | 'explore' | 'experience', stato: 'attivo' | 'sospeso' | 'trial') {
+  await db.update(schema.tenants)
+    .set({ piano, stato })
+    .where(eq(schema.tenants.id, tenantId));
 }
 
 // ==================== USERS ====================
@@ -247,4 +254,91 @@ export async function getNoteDiCredito(tenantId: string) {
     iva: numericToNumber(r.iva),
     totale: numericToNumber(r.totale),
   }));
+}
+
+// ==================== ABBONAMENTI ====================
+
+export async function getAbbonamenti() {
+  const rows = await db.select().from(schema.abbonamenti);
+  return rows.map(r => ({
+    ...r,
+    importoBase: numericToNumber(r.importoBase),
+    costoUtentiAggiuntivi: numericToNumber(r.costoUtentiAggiuntivi),
+    importoTotale: numericToNumber(r.importoTotale),
+  }));
+}
+
+export async function getAbbonamentoByTenantId(tenantId: string) {
+  const rows = await db.select().from(schema.abbonamenti)
+    .where(eq(schema.abbonamenti.tenantId, tenantId));
+  if (rows.length === 0) return null;
+  const r = rows[0];
+  return {
+    ...r,
+    importoBase: numericToNumber(r.importoBase),
+    costoUtentiAggiuntivi: numericToNumber(r.costoUtentiAggiuntivi),
+    importoTotale: numericToNumber(r.importoTotale),
+  };
+}
+
+export async function getAbbonamentoById(id: string) {
+  const rows = await db.select().from(schema.abbonamenti)
+    .where(eq(schema.abbonamenti.id, id));
+  if (rows.length === 0) return null;
+  const r = rows[0];
+  return {
+    ...r,
+    importoBase: numericToNumber(r.importoBase),
+    costoUtentiAggiuntivi: numericToNumber(r.costoUtentiAggiuntivi),
+    importoTotale: numericToNumber(r.importoTotale),
+  };
+}
+
+export async function createAbbonamento(data: typeof schema.abbonamenti.$inferInsert) {
+  await db.insert(schema.abbonamenti).values(data);
+}
+
+export async function updateAbbonamento(id: string, data: Partial<typeof schema.abbonamenti.$inferInsert>) {
+  await db.update(schema.abbonamenti)
+    .set({ ...data, dataAggiornamento: new Date().toISOString() })
+    .where(eq(schema.abbonamenti.id, id));
+}
+
+// ==================== TRANSAZIONI PIATTAFORMA ====================
+
+export async function getTransazioniPiattaforma() {
+  const rows = await db.select().from(schema.transazioniPiattaforma)
+    .orderBy(desc(schema.transazioniPiattaforma.data));
+  return rows.map(r => ({
+    ...r,
+    importo: numericToNumber(r.importo),
+  }));
+}
+
+export async function getTransazioniByTenantId(tenantId: string) {
+  const rows = await db.select().from(schema.transazioniPiattaforma)
+    .where(eq(schema.transazioniPiattaforma.tenantId, tenantId))
+    .orderBy(desc(schema.transazioniPiattaforma.data));
+  return rows.map(r => ({
+    ...r,
+    importo: numericToNumber(r.importo),
+  }));
+}
+
+export async function getTransazioneByRiferimentoEsterno(riferimento: string) {
+  const rows = await db.select().from(schema.transazioniPiattaforma)
+    .where(eq(schema.transazioniPiattaforma.riferimentoEsterno, riferimento));
+  if (rows.length === 0) return null;
+  const r = rows[0];
+  return { ...r, importo: numericToNumber(r.importo) };
+}
+
+export async function createTransazione(data: typeof schema.transazioniPiattaforma.$inferInsert) {
+  await db.insert(schema.transazioniPiattaforma).values(data);
+}
+
+export async function updateTransazione(id: string, data: Partial<typeof schema.transazioniPiattaforma.$inferInsert>) {
+  await db.update(schema.transazioniPiattaforma)
+    .set(data)
+    .where(eq(schema.transazioniPiattaforma.id, id));
 }

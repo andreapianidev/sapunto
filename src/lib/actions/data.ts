@@ -136,6 +136,24 @@ export async function fetchNoteDiCredito(tenantId: string) {
   return dal.getNoteDiCredito(tenantId);
 }
 
+// ==================== ABBONAMENTI E TRANSAZIONI ====================
+
+export async function fetchAbbonamenti() {
+  return dal.getAbbonamenti();
+}
+
+export async function fetchAbbonamentoByTenantId(tenantId: string) {
+  return dal.getAbbonamentoByTenantId(tenantId);
+}
+
+export async function fetchTransazioniPiattaforma() {
+  return dal.getTransazioniPiattaforma();
+}
+
+export async function fetchTransazioniByTenantId(tenantId: string) {
+  return dal.getTransazioniByTenantId(tenantId);
+}
+
 // ==================== STATISTICHE AGGREGATE ====================
 
 export async function fetchVenditeMensili(tenantId: string) {

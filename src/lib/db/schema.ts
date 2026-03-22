@@ -41,6 +41,10 @@ export const rinnovoContrattoEnum = pgEnum('rinnovo_contratto', ['automatico', '
 export const categoriaSpesaEnum = pgEnum('categoria_spesa', ['trasporti', 'pasti', 'alloggio', 'materiali', 'servizi', 'utenze', 'altro']);
 export const statoSpesaEnum = pgEnum('stato_spesa', ['da_approvare', 'approvata', 'rifiutata', 'rimborsata']);
 export const statoNotaCreditoEnum = pgEnum('stato_nota_credito', ['emessa', 'inviata_sdi', 'accettata']);
+export const metodoPagamentoPiattaformaEnum = pgEnum('metodo_pagamento_piattaforma', ['nexi', 'paypal', 'bonifico']);
+export const statoAbbonamentoEnum = pgEnum('stato_abbonamento', ['attivo', 'scaduto', 'sospeso', 'cancellato', 'trial', 'in_attesa_pagamento']);
+export const statoTransazioneEnum = pgEnum('stato_transazione', ['pending', 'completata', 'fallita', 'rimborsata', 'in_attesa_conferma']);
+export const cicloPagamentoEnum = pgEnum('ciclo_pagamento', ['mensile', 'annuale']);
 
 // ==================== TABLES ====================
 
@@ -426,4 +430,53 @@ export const noteDiCredito = pgTable('note_di_credito', {
   iva: numeric('iva', { precision: 10, scale: 2 }).notNull(),
   totale: numeric('totale', { precision: 10, scale: 2 }).notNull(),
   stato: statoNotaCreditoEnum('stato').notNull(),
+});
+
+// ==================== ABBONAMENTI (Subscriptions) ====================
+
+export const abbonamenti = pgTable('abbonamenti', {
+  id: text('id').primaryKey(),
+  tenantId: text('tenant_id').notNull(),
+  pianoId: pianoEnum('piano_id').notNull(),
+  stato: statoAbbonamentoEnum('stato').notNull(),
+  metodoPagamento: metodoPagamentoPiattaformaEnum('metodo_pagamento'),
+  cicloPagamento: cicloPagamentoEnum('ciclo_pagamento').notNull(),
+  dataInizio: text('data_inizio').notNull(),
+  dataFine: text('data_fine').notNull(),
+  prossimoRinnovo: text('prossimo_rinnovo'),
+  // Riferimenti gateway esterni
+  nexiContractId: text('nexi_contract_id'),
+  paypalSubscriptionId: text('paypal_subscription_id'),
+  // Importi
+  importoBase: numeric('importo_base', { precision: 10, scale: 2 }).notNull(),
+  utentiAggiuntivi: integer('utenti_aggiuntivi').notNull().default(0),
+  costoUtentiAggiuntivi: numeric('costo_utenti_aggiuntivi', { precision: 10, scale: 2 }).notNull().default('0'),
+  importoTotale: numeric('importo_totale', { precision: 10, scale: 2 }).notNull(),
+  // Bonifico
+  riferimentoBonifico: text('riferimento_bonifico'),
+  // Metadata
+  note: text('note'),
+  dataCreazione: text('data_creazione').notNull(),
+  dataAggiornamento: text('data_aggiornamento').notNull(),
+});
+
+// ==================== TRANSAZIONI PIATTAFORMA (Platform Payments) ====================
+
+export const transazioniPiattaforma = pgTable('transazioni_piattaforma', {
+  id: text('id').primaryKey(),
+  abbonamentoId: text('abbonamento_id').notNull(),
+  tenantId: text('tenant_id').notNull(),
+  importo: numeric('importo', { precision: 10, scale: 2 }).notNull(),
+  valuta: text('valuta').notNull().default('EUR'),
+  stato: statoTransazioneEnum('stato').notNull(),
+  metodoPagamento: metodoPagamentoPiattaformaEnum('metodo_pagamento').notNull(),
+  // Riferimenti gateway
+  riferimentoEsterno: text('riferimento_esterno'),
+  nexiOperationId: text('nexi_operation_id'),
+  paypalTransactionId: text('paypal_transaction_id'),
+  // Dettagli
+  descrizione: text('descrizione').notNull(),
+  data: text('data').notNull(),
+  dataConferma: text('data_conferma'),
+  dettagliRisposta: jsonb('dettagli_risposta').$type<Record<string, unknown>>(),
 });

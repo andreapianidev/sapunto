@@ -13,68 +13,113 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
 import { Pagination } from '@/components/ui/pagination';
-import { fetchTenants, fetchPiani } from '@/lib/actions/data';
+import { fetchTenants, fetchPiani, fetchTransazioniPiattaforma, fetchAbbonamenti } from '@/lib/actions/data';
+import { confermaBonifico } from '@/lib/actions/payments';
 import { useServerData } from '@/lib/hooks/use-server-data';
 import { useAuth } from '@/lib/auth-context';
 import { formatCurrency, formatDate } from '@/lib/utils';
-import { CreditCard, CheckCircle, AlertTriangle, Clock, Search, Download } from 'lucide-react';
-
-const pagamenti = [
-  { id: 'pay-1', tenantId: 't-1', tenant: 'Rossi Elettronica S.r.l.', importo: 99, data: '2026-03-01', stato: 'completato', metodo: 'Carta di Credito' },
-  { id: 'pay-2', tenantId: 't-2', tenant: 'Studio Bianchi & Associati', importo: 29, data: '2026-03-01', stato: 'completato', metodo: 'Bonifico' },
-  { id: 'pay-3', tenantId: 't-3', tenant: 'GreenFood Italia S.p.A.', importo: 59, data: '2026-03-01', stato: 'completato', metodo: 'Carta di Credito' },
-  { id: 'pay-4', tenantId: 't-1', tenant: 'Rossi Elettronica S.r.l.', importo: 99, data: '2026-02-01', stato: 'completato', metodo: 'Carta di Credito' },
-  { id: 'pay-5', tenantId: 't-2', tenant: 'Studio Bianchi & Associati', importo: 29, data: '2026-02-01', stato: 'completato', metodo: 'Bonifico' },
-  { id: 'pay-6', tenantId: 't-3', tenant: 'GreenFood Italia S.p.A.', importo: 59, data: '2026-02-01', stato: 'completato', metodo: 'Carta di Credito' },
-  { id: 'pay-7', tenantId: 't-1', tenant: 'Rossi Elettronica S.r.l.', importo: 99, data: '2026-01-01', stato: 'completato', metodo: 'Carta di Credito' },
-  { id: 'pay-8', tenantId: 't-2', tenant: 'Studio Bianchi & Associati', importo: 29, data: '2026-01-01', stato: 'completato', metodo: 'Bonifico' },
-  { id: 'pay-9', tenantId: 't-3', tenant: 'GreenFood Italia S.p.A.', importo: 59, data: '2026-01-01', stato: 'completato', metodo: 'Carta di Credito' },
-  { id: 'pay-10', tenantId: 't-1', tenant: 'Rossi Elettronica S.r.l.', importo: 99, data: '2025-12-01', stato: 'completato', metodo: 'Carta di Credito' },
-  { id: 'pay-11', tenantId: 't-2', tenant: 'Studio Bianchi & Associati', importo: 29, data: '2025-12-01', stato: 'fallito', metodo: 'Bonifico' },
-  { id: 'pay-12', tenantId: 't-3', tenant: 'GreenFood Italia S.p.A.', importo: 59, data: '2025-12-01', stato: 'completato', metodo: 'Carta di Credito' },
-];
+import { CreditCard, CheckCircle, AlertTriangle, Clock, Search, Download, Building2, Banknote } from 'lucide-react';
 
 const statoBadge: Record<string, string> = {
-  completato: 'bg-green-100 text-green-800',
-  fallito: 'bg-red-100 text-red-800',
-  in_attesa: 'bg-yellow-100 text-yellow-800',
+  completata: 'bg-green-100 text-green-800',
+  fallita: 'bg-red-100 text-red-800',
+  pending: 'bg-yellow-100 text-yellow-800',
+  in_attesa_conferma: 'bg-orange-100 text-orange-800',
+  rimborsata: 'bg-gray-100 text-gray-800',
+};
+
+const statoLabel: Record<string, string> = {
+  completata: 'Completato',
+  fallita: 'Fallito',
+  pending: 'In Attesa',
+  in_attesa_conferma: 'Da Confermare',
+  rimborsata: 'Rimborsato',
+};
+
+const metodoIcon: Record<string, typeof CreditCard> = {
+  nexi: CreditCard,
+  paypal: CreditCard,
+  bonifico: Building2,
+};
+
+const metodoLabel: Record<string, string> = {
+  nexi: 'NexiPay',
+  paypal: 'PayPal',
+  bonifico: 'Bonifico',
 };
 
 export default function BillingPage() {
   const { user } = useAuth();
-  const tenantId = user?.tenantId || 't-1';
   const [allData, loading] = useServerData(
-    () => Promise.all([fetchTenants(), fetchPiani()]),
-    [[], []]
+    () => Promise.all([fetchTenants(), fetchPiani(), fetchTransazioniPiattaforma(), fetchAbbonamenti()]),
+    [[], [], [], []]
   );
   const tenants = allData[0];
   const piani = allData[1];
+  const transazioni = allData[2];
+  const abbonamenti = allData[3];
 
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStato, setFilterStato] = useState<string>('tutti');
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
-  const mrrTotale = piani.reduce((sum, p) => {
+  // Calcola MRR reale da abbonamenti attivi
+  const mrrTotale = useMemo(() => {
+    return abbonamenti
+      .filter(a => a.stato === 'attivo')
+      .reduce((sum, a) => {
+        if (a.cicloPagamento === 'mensile') {
+          return sum + a.importoTotale;
+        } else {
+          // Per abbonamenti annuali, calcola il MRR
+          return sum + (a.importoTotale / 12);
+        }
+      }, 0);
+  }, [abbonamenti]);
+
+  // Fallback: se non ci sono abbonamenti, calcola dai piani
+  const mrrCalcolato = mrrTotale > 0 ? mrrTotale : piani.reduce((sum, p) => {
     const count = tenants.filter((t) => t.piano === p.id).length;
     return sum + p.prezzoMensile * count;
   }, 0);
 
+  // Arricchisci transazioni con nome tenant
+  const transazioniArricchite = useMemo(() => {
+    return transazioni.map(t => {
+      const tenant = tenants.find(ten => ten.id === t.tenantId);
+      return {
+        ...t,
+        tenantNome: tenant?.ragioneSociale || t.tenantId,
+      };
+    });
+  }, [transazioni, tenants]);
+
   const filtered = useMemo(() => {
-    return pagamenti.filter((p) => {
-      const matchSearch = p.tenant.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchStato = filterStato === 'tutti' || p.stato === filterStato;
+    return transazioniArricchite.filter((t) => {
+      const matchSearch = t.tenantNome.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          t.descrizione.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchStato = filterStato === 'tutti' || t.stato === filterStato;
       return matchSearch && matchStato;
     });
-  }, [searchTerm, filterStato]);
+  }, [transazioniArricchite, searchTerm, filterStato]);
 
-  const totaleFalliti = pagamenti.filter((p) => p.stato === 'fallito').length;
+  const totaleFalliti = transazioni.filter(t => t.stato === 'fallita').length;
+  const totaleInAttesa = transazioni.filter(t => t.stato === 'pending' || t.stato === 'in_attesa_conferma').length;
+  const abbonamentiAttivi = abbonamenti.filter(a => a.stato === 'attivo').length;
+
+  const handleConfermaBonifico = async (abbId: string) => {
+    const result = await confermaBonifico(abbId);
+    if (result.success) {
+      window.location.reload();
+    }
+  };
 
   if (loading) return <div className="p-8 text-center">Caricamento...</div>;
 
   return (
-    <PageContainer title="Billing Globale" description="Panoramica pagamenti e rinnovi" actions={
-      <Button variant="outline" size="sm" onClick={() => alert('Demo: esporta report billing!')}>
+    <PageContainer title="Billing Globale" description="Panoramica pagamenti, abbonamenti e rinnovi" actions={
+      <Button variant="outline" size="sm" onClick={() => alert('Esporta report in CSV — prossimamente')}>
         <Download className="mr-2 h-4 w-4" />Report
       </Button>
     }>
@@ -86,7 +131,7 @@ export default function BillingPage() {
               <CreditCard className="h-5 w-5" />
             </div>
             <div>
-              <p className="text-xl font-bold">{formatCurrency(mrrTotale)}</p>
+              <p className="text-xl font-bold">{formatCurrency(mrrCalcolato)}</p>
               <p className="text-xs text-muted-foreground">MRR Totale</p>
             </div>
           </CardContent>
@@ -97,7 +142,7 @@ export default function BillingPage() {
               <CheckCircle className="h-5 w-5" />
             </div>
             <div>
-              <p className="text-xl font-bold">{formatCurrency(mrrTotale * 12)}</p>
+              <p className="text-xl font-bold">{formatCurrency(mrrCalcolato * 12)}</p>
               <p className="text-xs text-muted-foreground">ARR Stimato</p>
             </div>
           </CardContent>
@@ -108,8 +153,8 @@ export default function BillingPage() {
               <Clock className="h-5 w-5" />
             </div>
             <div>
-              <p className="text-xl font-bold">2</p>
-              <p className="text-xs text-muted-foreground">Rinnovi in Scadenza</p>
+              <p className="text-xl font-bold">{totaleInAttesa}</p>
+              <p className="text-xs text-muted-foreground">Pagamenti in Attesa</p>
             </div>
           </CardContent>
         </Card>
@@ -126,10 +171,12 @@ export default function BillingPage() {
         </Card>
       </div>
 
-      {/* Revenue per piano */}
+      {/* Revenue per piano + Abbonamenti attivi */}
       <div className="grid gap-4 md:grid-cols-3">
         {piani.map((p) => {
-          const count = tenants.filter((t) => t.piano === p.id).length;
+          const countTenants = tenants.filter((t) => t.piano === p.id).length;
+          const countAbb = abbonamenti.filter(a => a.pianoId === p.id && a.stato === 'attivo').length;
+          const displayCount = countAbb > 0 ? countAbb : countTenants;
           return (
             <Card key={p.id}>
               <CardContent className="p-4">
@@ -139,9 +186,9 @@ export default function BillingPage() {
                     p.id === 'explore' ? 'bg-blue-100 text-blue-800' :
                     'bg-gray-100 text-gray-800'
                   }`}>{p.nome}</Badge>
-                  <span className="text-xs text-muted-foreground">{count} tenant</span>
+                  <span className="text-xs text-muted-foreground">{displayCount} abbonament{displayCount === 1 ? 'o' : 'i'}</span>
                 </div>
-                <p className="text-2xl font-bold">{formatCurrency(p.prezzoMensile * count)}</p>
+                <p className="text-2xl font-bold">{formatCurrency(p.prezzoMensile * displayCount)}</p>
                 <p className="text-xs text-muted-foreground">Revenue mensile</p>
               </CardContent>
             </Card>
@@ -149,47 +196,117 @@ export default function BillingPage() {
         })}
       </div>
 
+      {/* Bonifici in attesa di conferma */}
+      {abbonamenti.filter(a => a.stato === 'in_attesa_pagamento' && a.metodoPagamento === 'bonifico').length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base font-semibold flex items-center gap-2">
+              <Banknote className="h-4 w-4 text-amber-600" />
+              Bonifici in Attesa di Conferma
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Tenant</TableHead>
+                  <TableHead>Piano</TableHead>
+                  <TableHead>Riferimento</TableHead>
+                  <TableHead className="text-right">Importo</TableHead>
+                  <TableHead className="text-right">Azione</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {abbonamenti
+                  .filter(a => a.stato === 'in_attesa_pagamento' && a.metodoPagamento === 'bonifico')
+                  .map(a => {
+                    const tenant = tenants.find(t => t.id === a.tenantId);
+                    return (
+                      <TableRow key={a.id}>
+                        <TableCell className="text-sm font-medium">{tenant?.ragioneSociale || a.tenantId}</TableCell>
+                        <TableCell className="text-sm">{a.pianoId}</TableCell>
+                        <TableCell className="text-sm font-mono">{a.riferimentoBonifico}</TableCell>
+                        <TableCell className="text-right font-semibold text-sm">{formatCurrency(a.importoTotale)}</TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            variant="default"
+                            size="sm"
+                            onClick={() => handleConfermaBonifico(a.id)}
+                          >
+                            Conferma
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Search/Filter */}
       <Card><CardContent className="p-4"><div className="flex flex-col gap-3 md:flex-row md:items-center">
         <div className="relative flex-1"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><Input placeholder="Cerca pagamento..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-9" /></div>
-        <Select value={filterStato} onValueChange={(v) => v && setFilterStato(v)}><SelectTrigger className="w-[160px]"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="tutti">Tutti gli Stati</SelectItem><SelectItem value="completato">Completato</SelectItem><SelectItem value="fallito">Fallito</SelectItem></SelectContent></Select>
+        <Select value={filterStato} onValueChange={(v) => v && setFilterStato(v)}><SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="tutti">Tutti gli Stati</SelectItem><SelectItem value="completata">Completato</SelectItem><SelectItem value="fallita">Fallito</SelectItem><SelectItem value="pending">In Attesa</SelectItem><SelectItem value="in_attesa_conferma">Da Confermare</SelectItem></SelectContent></Select>
       </div></CardContent></Card>
 
       {/* Payments table */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base font-semibold">Storico Pagamenti</CardTitle>
+          <CardTitle className="text-base font-semibold">Storico Transazioni</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Data</TableHead>
-                <TableHead>Tenant</TableHead>
-                <TableHead>Metodo</TableHead>
-                <TableHead>Stato</TableHead>
-                <TableHead className="text-right">Importo</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize).map((pay) => (
-                <TableRow key={pay.id}>
-                  <TableCell className="text-sm">{formatDate(pay.data)}</TableCell>
-                  <TableCell className="text-sm font-medium">{pay.tenant}</TableCell>
-                  <TableCell className="text-sm">{pay.metodo}</TableCell>
-                  <TableCell>
-                    <Badge variant="secondary" className={`text-xs ${statoBadge[pay.stato]}`}>
-                      {pay.stato.charAt(0).toUpperCase() + pay.stato.slice(1)}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right font-semibold text-sm">
-                    {formatCurrency(pay.importo)}
-                  </TableCell>
+          {filtered.length === 0 ? (
+            <div className="p-8 text-center text-muted-foreground">
+              {transazioni.length === 0
+                ? 'Nessuna transazione registrata. Le transazioni appariranno qui quando i clienti effettueranno pagamenti.'
+                : 'Nessuna transazione trovata con i filtri selezionati.'
+              }
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Data</TableHead>
+                  <TableHead>Tenant</TableHead>
+                  <TableHead>Descrizione</TableHead>
+                  <TableHead>Metodo</TableHead>
+                  <TableHead>Stato</TableHead>
+                  <TableHead className="text-right">Importo</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-          <Pagination currentPage={currentPage} totalItems={filtered.length} pageSize={pageSize} onPageChange={setCurrentPage} onPageSizeChange={setPageSize} />
+              </TableHeader>
+              <TableBody>
+                {filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize).map((t) => {
+                  const MetodoIcon = metodoIcon[t.metodoPagamento] || CreditCard;
+                  return (
+                    <TableRow key={t.id}>
+                      <TableCell className="text-sm">{formatDate(t.data)}</TableCell>
+                      <TableCell className="text-sm font-medium">{t.tenantNome}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">{t.descrizione}</TableCell>
+                      <TableCell className="text-sm">
+                        <div className="flex items-center gap-1.5">
+                          <MetodoIcon className="h-3.5 w-3.5 text-muted-foreground" />
+                          {metodoLabel[t.metodoPagamento] || t.metodoPagamento}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="secondary" className={`text-xs ${statoBadge[t.stato] || 'bg-gray-100 text-gray-800'}`}>
+                          {statoLabel[t.stato] || t.stato}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right font-semibold text-sm">
+                        {formatCurrency(t.importo)}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          )}
+          {filtered.length > 0 && (
+            <Pagination currentPage={currentPage} totalItems={filtered.length} pageSize={pageSize} onPageChange={setCurrentPage} onPageSizeChange={setPageSize} />
+          )}
         </CardContent>
       </Card>
     </PageContainer>

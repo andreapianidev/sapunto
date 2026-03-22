@@ -413,3 +413,49 @@ export interface NotaDiCredito {
   totale: number;
   stato: 'emessa' | 'inviata_sdi' | 'accettata';
 }
+
+// ==================== PAGAMENTI E ABBONAMENTI ====================
+
+export type MetodoPagamentoPiattaforma = 'nexi' | 'paypal' | 'bonifico';
+export type StatoAbbonamento = 'attivo' | 'scaduto' | 'sospeso' | 'cancellato' | 'trial' | 'in_attesa_pagamento';
+export type StatoTransazione = 'pending' | 'completata' | 'fallita' | 'rimborsata' | 'in_attesa_conferma';
+export type CicloPagamento = 'mensile' | 'annuale';
+
+export interface Abbonamento {
+  id: string;
+  tenantId: string;
+  pianoId: PianoAbbonamento;
+  stato: StatoAbbonamento;
+  metodoPagamento: MetodoPagamentoPiattaforma | null;
+  cicloPagamento: CicloPagamento;
+  dataInizio: string;
+  dataFine: string;
+  prossimoRinnovo: string | null;
+  nexiContractId: string | null;
+  paypalSubscriptionId: string | null;
+  importoBase: number;
+  utentiAggiuntivi: number;
+  costoUtentiAggiuntivi: number;
+  importoTotale: number;
+  riferimentoBonifico: string | null;
+  note: string | null;
+  dataCreazione: string;
+  dataAggiornamento: string;
+}
+
+export interface TransazionePiattaforma {
+  id: string;
+  abbonamentoId: string;
+  tenantId: string;
+  importo: number;
+  valuta: string;
+  stato: StatoTransazione;
+  metodoPagamento: MetodoPagamentoPiattaforma;
+  riferimentoEsterno: string | null;
+  nexiOperationId: string | null;
+  paypalTransactionId: string | null;
+  descrizione: string;
+  data: string;
+  dataConferma: string | null;
+  dettagliRisposta: Record<string, unknown> | null;
+}
