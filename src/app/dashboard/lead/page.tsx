@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Pagination } from '@/components/ui/pagination';
-import { fetchLeads } from '@/lib/actions/data';
+import { fetchLeads, createLead, updateLead, deleteLead } from '@/lib/actions/data';
 import { useServerData } from '@/lib/hooks/use-server-data';
 import { useAuth } from '@/lib/auth-context';
 import { formatCurrency, formatDate } from '@/lib/utils';
@@ -30,7 +30,7 @@ const pipelineFasi: FaseLead[] = ['nuovo', 'contattato', 'qualificato', 'propost
 export default function LeadPage() {
   const { user } = useAuth();
   const tenantId = user?.tenantId || 't-1';
-  const [leads, loading] = useServerData(() => fetchLeads(tenantId), []);
+  const [leads, loading, refresh] = useServerData(() => fetchLeads(tenantId), []);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [filterFase, setFilterFase] = useState<string>('tutti');
@@ -40,6 +40,100 @@ export default function LeadPage() {
   const [detailOpen, setDetailOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+
+  // Form state for new lead
+  const [formAzienda, setFormAzienda] = useState('');
+  const [formReferente, setFormReferente] = useState('');
+  const [formEmail, setFormEmail] = useState('');
+  const [formTelefono, setFormTelefono] = useState('');
+  const [formValore, setFormValore] = useState('');
+  const [formFonte, setFormFonte] = useState<string>('sito_web');
+
+  const resetForm = () => {
+    setFormAzienda('');
+    setFormReferente('');
+    setFormEmail('');
+    setFormTelefono('');
+    setFormValore('');
+    setFormFonte('sito_web');
+  };
+
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    try {
+      const result = await createLead({
+        tenantId,
+        azienda: formAzienda,
+        referente: formReferente,
+        email: formEmail,
+        telefono: formTelefono,
+        fonte: formFonte as 'sito_web' | 'referral' | 'fiera' | 'social' | 'cold_call' | 'altro',
+        fase: 'nuovo',
+        valore: formValore || '0',
+        probabilita: 20,
+        assegnatoA: user?.id || '',
+        assegnatoNome: user?.nome ? `${user.nome} ${user.cognome || ''}`.trim() : '',
+        dataChiusuraPrevista: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      });
+      if (result.ok) {
+        resetForm();
+        setCreateOpen(false);
+        refresh();
+      } else {
+        alert('Errore: ' + ('error' in result ? result.error : 'Errore sconosciuto'));
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Sei sicuro di voler eliminare questo lead?')) return;
+    setSubmitting(true);
+    try {
+      const result = await deleteLead(id);
+      if (result.ok) {
+        setSelectedIds((prev) => { const next = new Set(prev); next.delete(id); return next; });
+        refresh();
+      } else {
+        alert('Errore: ' + ('error' in result ? result.error : 'Errore sconosciuto'));
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (!confirm(`Sei sicuro di voler eliminare ${selectedIds.size} lead?`)) return;
+    setSubmitting(true);
+    try {
+      const ids = Array.from(selectedIds);
+      for (const id of ids) {
+        await deleteLead(id);
+      }
+      setSelectedIds(new Set());
+      refresh();
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handlePhaseChange = async (id: string, newFase: FaseLead) => {
+    setSubmitting(true);
+    try {
+      const result = await updateLead(id, { fase: newFase });
+      if (result.ok) {
+        refresh();
+      } else {
+        alert('Errore: ' + ('error' in result ? result.error : 'Errore sconosciuto'));
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   const attivi = leads.filter((l) => l.fase !== 'vinto' && l.fase !== 'perso');
   const valorePipeline = attivi.reduce((s, l) => s + l.valore, 0);
@@ -102,20 +196,20 @@ export default function LeadPage() {
     <PageContainer title="Lead & Pipeline" description="Gestione opportunità commerciali" actions={
       <div className="flex items-center gap-2">
       <Button variant="outline" size="sm" onClick={() => alert('Demo: azione eseguita!')}><Download className="mr-2 h-4 w-4" />Export CSV</Button>
-      <Dialog>
+      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogTrigger className="inline-flex items-center justify-center rounded-md text-sm font-medium h-8 px-3 bg-[#1a2332] text-white hover:bg-[#1a2332]/90"><Plus className="mr-2 h-4 w-4" />Nuovo Lead</DialogTrigger>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader><DialogTitle>Nuovo Lead</DialogTitle></DialogHeader>
-          <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); alert('Demo: lead creato!'); }}>
+          <form className="space-y-4" onSubmit={handleCreate}>
             <div className="grid gap-3 sm:grid-cols-2">
-              <div><Label>Azienda *</Label><Input placeholder="Nome azienda" className="mt-1" required /></div>
-              <div><Label>Referente *</Label><Input placeholder="Nome e cognome" className="mt-1" required /></div>
-              <div><Label>Email</Label><Input type="email" placeholder="email@azienda.it" className="mt-1" /></div>
-              <div><Label>Telefono</Label><Input placeholder="+39..." className="mt-1" /></div>
-              <div><Label>Valore Stimato</Label><Input type="number" placeholder="0" className="mt-1" /></div>
-              <div><Label>Fonte</Label><Select defaultValue="sito_web"><SelectTrigger className="mt-1 w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="sito_web">Sito Web</SelectItem><SelectItem value="referral">Referral</SelectItem><SelectItem value="fiera">Fiera</SelectItem><SelectItem value="social">Social</SelectItem><SelectItem value="cold_call">Cold Call</SelectItem></SelectContent></Select></div>
+              <div><Label>Azienda *</Label><Input placeholder="Nome azienda" className="mt-1" required value={formAzienda} onChange={(e) => setFormAzienda(e.target.value)} /></div>
+              <div><Label>Referente *</Label><Input placeholder="Nome e cognome" className="mt-1" required value={formReferente} onChange={(e) => setFormReferente(e.target.value)} /></div>
+              <div><Label>Email</Label><Input type="email" placeholder="email@azienda.it" className="mt-1" value={formEmail} onChange={(e) => setFormEmail(e.target.value)} /></div>
+              <div><Label>Telefono</Label><Input placeholder="+39..." className="mt-1" value={formTelefono} onChange={(e) => setFormTelefono(e.target.value)} /></div>
+              <div><Label>Valore Stimato</Label><Input type="number" placeholder="0" className="mt-1" value={formValore} onChange={(e) => setFormValore(e.target.value)} /></div>
+              <div><Label>Fonte</Label><Select value={formFonte} onValueChange={(v) => v && setFormFonte(v)}><SelectTrigger className="mt-1 w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="sito_web">Sito Web</SelectItem><SelectItem value="referral">Referral</SelectItem><SelectItem value="fiera">Fiera</SelectItem><SelectItem value="social">Social</SelectItem><SelectItem value="cold_call">Cold Call</SelectItem></SelectContent></Select></div>
             </div>
-            <div className="flex justify-end"><Button type="submit" className="bg-[#1a2332] hover:bg-[#1a2332]/90"><Save className="mr-2 h-4 w-4" />Salva Lead</Button></div>
+            <div className="flex justify-end"><Button type="submit" className="bg-[#1a2332] hover:bg-[#1a2332]/90" disabled={submitting}><Save className="mr-2 h-4 w-4" />{submitting ? 'Salvataggio...' : 'Salva Lead'}</Button></div>
           </form>
         </DialogContent>
       </Dialog>
@@ -161,7 +255,14 @@ export default function LeadPage() {
                               <DropdownMenuItem onClick={() => alert('Demo: azione eseguita!')}><Pencil className="mr-2 h-4 w-4" />Modifica</DropdownMenuItem>
                               <DropdownMenuItem onClick={() => alert('Demo: azione eseguita!')}><Copy className="mr-2 h-4 w-4" />Converti a Cliente</DropdownMenuItem>
                               <DropdownMenuSeparator />
-                              <DropdownMenuItem onClick={() => alert('Demo: azione eseguita!')} className="text-red-600"><Trash2 className="mr-2 h-4 w-4" />Elimina</DropdownMenuItem>
+                              {/* Phase change options */}
+                              {pipelineFasi.filter((f) => f !== fase).map((targetFase) => (
+                                <DropdownMenuItem key={targetFase} onClick={() => handlePhaseChange(lead.id, targetFase)} disabled={submitting}>
+                                  <TrendingUp className="mr-2 h-4 w-4" />Sposta a {faseLabel[targetFase]}
+                                </DropdownMenuItem>
+                              ))}
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem onClick={() => handleDelete(lead.id)} disabled={submitting} className="text-red-600"><Trash2 className="mr-2 h-4 w-4" />Elimina</DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
                         </div>
@@ -233,9 +334,9 @@ export default function LeadPage() {
               <CardContent className="p-3">
                 <div className="flex items-center gap-3">
                   <span className="text-sm font-medium">{selectedIds.size} selezionati</span>
-                  <Button variant="destructive" size="sm" onClick={() => alert('Demo: azione eseguita!')}>
+                  <Button variant="destructive" size="sm" onClick={handleBulkDelete} disabled={submitting}>
                     <Trash2 className="mr-2 h-4 w-4" />
-                    Elimina selezionati
+                    {submitting ? 'Eliminazione...' : 'Elimina selezionati'}
                   </Button>
                   <Button variant="outline" size="sm" onClick={() => alert('Demo: azione eseguita!')}>
                     <Download className="mr-2 h-4 w-4" />
@@ -304,7 +405,7 @@ export default function LeadPage() {
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
                               <DropdownMenuItem onClick={() => alert('Demo: azione eseguita!')}><Pencil className="mr-2 h-4 w-4" />Modifica</DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => alert('Demo: azione eseguita!')}><Trash2 className="mr-2 h-4 w-4" />Elimina</DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleDelete(l.id)} disabled={submitting}><Trash2 className="mr-2 h-4 w-4" />Elimina</DropdownMenuItem>
                               <DropdownMenuSeparator />
                               <DropdownMenuItem onClick={() => alert('Demo: azione eseguita!')}><Copy className="mr-2 h-4 w-4" />Converti a Cliente</DropdownMenuItem>
                             </DropdownMenuContent>
@@ -398,6 +499,9 @@ export default function LeadPage() {
               <div className="flex justify-end gap-2 pt-2">
                 <Button variant="outline" size="sm" onClick={() => alert('Demo: azione eseguita!')}>
                   <Pencil className="mr-2 h-4 w-4" />Modifica
+                </Button>
+                <Button variant="destructive" size="sm" onClick={() => { handleDelete(detailLead.id); setDetailOpen(false); }} disabled={submitting}>
+                  <Trash2 className="mr-2 h-4 w-4" />Elimina
                 </Button>
                 <Button size="sm" className="bg-[#1a2332] hover:bg-[#1a2332]/90" onClick={() => alert('Demo: azione eseguita!')}>
                   <Copy className="mr-2 h-4 w-4" />Converti a Cliente
