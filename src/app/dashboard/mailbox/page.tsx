@@ -18,7 +18,7 @@ import {
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { fetchEmails, fetchClienti } from '@/lib/actions/data';
+import { fetchEmails, fetchClienti, createEmailRecord, updateEmailRecord, deleteEmailRecord } from '@/lib/actions/data';
 import { useServerData } from '@/lib/hooks/use-server-data';
 import { useAuth } from '@/lib/auth-context';
 import { formatDateTime } from '@/lib/utils';
@@ -28,7 +28,7 @@ import type { Email } from '@/lib/types';
 export default function MailboxPage() {
   const { user } = useAuth();
   const tenantId = user?.tenantId || 't-1';
-  const [allData, loading] = useServerData(
+  const [allData, loading, refresh] = useServerData(
     () => Promise.all([fetchEmails(tenantId), fetchClienti(tenantId)]),
     [[], []]
   );
@@ -38,6 +38,104 @@ export default function MailboxPage() {
   const [selectedEmail, setSelectedEmail] = useState<Email | null>(null);
   const [filterTipo, setFilterTipo] = useState<'tutte' | 'ricevuta' | 'inviata'>('tutte');
   const [searchTerm, setSearchTerm] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  // Dialog open state
+  const [newEmailOpen, setNewEmailOpen] = useState(false);
+
+  // --- New Email form state ---
+  const [emailFormA, setEmailFormA] = useState('');
+  const [emailFormOggetto, setEmailFormOggetto] = useState('');
+  const [emailFormCliente, setEmailFormCliente] = useState('');
+  const [emailFormCorpo, setEmailFormCorpo] = useState('');
+
+  // --- Reset form ---
+  const resetEmailForm = () => {
+    setEmailFormA('');
+    setEmailFormOggetto('');
+    setEmailFormCliente('');
+    setEmailFormCorpo('');
+  };
+
+  // --- Handle send email ---
+  const handleSendEmail = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    try {
+      const cliente = emailFormCliente ? clienti.find((c) => c.id === emailFormCliente) : null;
+      const res = await createEmailRecord({
+        tenantId,
+        da: user?.email || 'utente@sapunto.it',
+        a: emailFormA,
+        oggetto: emailFormOggetto,
+        corpo: emailFormCorpo,
+        tipo: 'inviata',
+        clienteId: emailFormCliente || undefined,
+        clienteNome: cliente?.ragioneSociale || undefined,
+      });
+      if (!res.ok) {
+        alert(`Errore: ${res.error}`);
+      } else {
+        resetEmailForm();
+        setNewEmailOpen(false);
+        refresh();
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // --- Handle save draft ---
+  const handleSaveDraft = async () => {
+    setSubmitting(true);
+    try {
+      const cliente = emailFormCliente ? clienti.find((c) => c.id === emailFormCliente) : null;
+      const res = await createEmailRecord({
+        tenantId,
+        da: user?.email || 'utente@sapunto.it',
+        a: emailFormA,
+        oggetto: emailFormOggetto || '(Bozza)',
+        corpo: emailFormCorpo,
+        tipo: 'bozza',
+        clienteId: emailFormCliente || undefined,
+        clienteNome: cliente?.ragioneSociale || undefined,
+      });
+      if (!res.ok) {
+        alert(`Errore: ${res.error}`);
+      } else {
+        resetEmailForm();
+        setNewEmailOpen(false);
+        refresh();
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // --- Handle delete email ---
+  const handleDeleteEmail = async (id: string) => {
+    if (!confirm('Eliminare questa email?')) return;
+    setSubmitting(true);
+    try {
+      const res = await deleteEmailRecord(id);
+      if (!res.ok) {
+        alert(`Errore: ${res.error}`);
+      } else {
+        if (selectedEmail?.id === id) setSelectedEmail(null);
+        refresh();
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // --- Handle mark as read ---
+  const handleMarkAsRead = async (email: Email) => {
+    if (!email.letto) {
+      await updateEmailRecord(email.id, { letto: true });
+      refresh();
+    }
+  };
 
   // TODO: Replace with Supabase query
   const filtered = emails.filter((e) => {
@@ -63,7 +161,7 @@ export default function MailboxPage() {
             <Download className="mr-2 h-4 w-4" />
             Esporta
           </Button>
-          <Dialog>
+          <Dialog open={newEmailOpen} onOpenChange={(open) => { setNewEmailOpen(open); if (!open) resetEmailForm(); }}>
             <DialogTrigger className="inline-flex items-center justify-center rounded-md text-sm font-medium h-8 px-3 bg-[#1a2332] text-white hover:bg-[#1a2332]/90">
               <Plus className="mr-2 h-4 w-4" />
               Nuova Email
@@ -72,19 +170,19 @@ export default function MailboxPage() {
               <DialogHeader>
                 <DialogTitle>Nuova Email</DialogTitle>
               </DialogHeader>
-              <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); alert('Demo: email inviata!'); }}>
+              <form className="space-y-4" onSubmit={handleSendEmail}>
                 <div className="grid gap-3">
                   <div>
                     <Label>A (destinatario) *</Label>
-                    <Input type="email" placeholder="email@esempio.it" className="mt-1" required />
+                    <Input type="email" placeholder="email@esempio.it" className="mt-1" required value={emailFormA} onChange={(e) => setEmailFormA(e.target.value)} />
                   </div>
                   <div>
                     <Label>Oggetto *</Label>
-                    <Input placeholder="Oggetto dell'email" className="mt-1" required />
+                    <Input placeholder="Oggetto dell'email" className="mt-1" required value={emailFormOggetto} onChange={(e) => setEmailFormOggetto(e.target.value)} />
                   </div>
                   <div>
                     <Label>Collega a Cliente</Label>
-                    <Select>
+                    <Select value={emailFormCliente} onValueChange={(v) => v && setEmailFormCliente(v)}>
                       <SelectTrigger className="mt-1 w-full">
                         <SelectValue placeholder="Seleziona cliente" />
                       </SelectTrigger>
@@ -101,16 +199,18 @@ export default function MailboxPage() {
                       placeholder="Scrivi il messaggio..."
                       rows={8}
                       className="mt-1 flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                      value={emailFormCorpo}
+                      onChange={(e) => setEmailFormCorpo(e.target.value)}
                     />
                   </div>
                 </div>
                 <div className="flex justify-end gap-2">
-                  <Button type="button" variant="outline" onClick={() => alert('Demo: bozza salvata!')}>
-                    Salva Bozza
+                  <Button type="button" variant="outline" disabled={submitting} onClick={handleSaveDraft}>
+                    {submitting ? 'Salvataggio...' : 'Salva Bozza'}
                   </Button>
-                  <Button type="submit" className="bg-[#1a2332] hover:bg-[#1a2332]/90">
+                  <Button type="submit" className="bg-[#1a2332] hover:bg-[#1a2332]/90" disabled={submitting}>
                     <Send className="mr-2 h-4 w-4" />
-                    Invia
+                    {submitting ? 'Invio...' : 'Invia'}
                   </Button>
                 </div>
               </form>
@@ -159,7 +259,10 @@ export default function MailboxPage() {
                   } ${!email.letto ? 'bg-blue-50/50' : ''}`}
                 >
                   <button
-                    onClick={() => setSelectedEmail(email)}
+                    onClick={() => {
+                      setSelectedEmail(email);
+                      handleMarkAsRead(email);
+                    }}
                     className="w-full text-left p-3 pr-10 hover:bg-muted/50 transition-colors"
                   >
                     <div className="flex items-start gap-2">
@@ -202,7 +305,11 @@ export default function MailboxPage() {
                           <Forward className="mr-2 h-4 w-4" />Inoltra
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={() => alert('Demo: azione eseguita!')} className="text-red-600">
+                        <DropdownMenuItem
+                          disabled={submitting}
+                          onClick={() => handleDeleteEmail(email.id)}
+                          className="text-red-600"
+                        >
                           <Trash2 className="mr-2 h-4 w-4" />Elimina
                         </DropdownMenuItem>
                       </DropdownMenuContent>

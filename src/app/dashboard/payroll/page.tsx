@@ -21,7 +21,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Pagination } from '@/components/ui/pagination';
-import { fetchDipendenti, fetchCedolini } from '@/lib/actions/data';
+import { fetchDipendenti, fetchCedolini, createDipendente, updateDipendente, deleteDipendente, createCedolino, updateCedolino, deleteCedolino } from '@/lib/actions/data';
 import { useServerData } from '@/lib/hooks/use-server-data';
 import { useAuth } from '@/lib/auth-context';
 import { formatCurrency, formatDate, getMeseLabel } from '@/lib/utils';
@@ -31,7 +31,7 @@ import type { Dipendente } from '@/lib/types';
 export default function PayrollPage() {
   const { user } = useAuth();
   const tenantId = user?.tenantId || 't-1';
-  const [allData, loading] = useServerData(
+  const [allData, loading, refresh] = useServerData(
     () => Promise.all([fetchDipendenti(tenantId), fetchCedolini(tenantId)]),
     [[], []]
   );
@@ -39,6 +39,29 @@ export default function PayrollPage() {
   const cedolini = allData[1];
 
   const [selectedDipendente, setSelectedDipendente] = useState<Dipendente | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  // --- Dialog open states ---
+  const [newDipOpen, setNewDipOpen] = useState(false);
+  const [newCedOpen, setNewCedOpen] = useState(false);
+
+  // --- New Dipendente form state ---
+  const [dipFormNome, setDipFormNome] = useState('');
+  const [dipFormCognome, setDipFormCognome] = useState('');
+  const [dipFormEmail, setDipFormEmail] = useState('');
+  const [dipFormCf, setDipFormCf] = useState('');
+  const [dipFormNascita, setDipFormNascita] = useState('');
+  const [dipFormRuolo, setDipFormRuolo] = useState('');
+  const [dipFormContratto, setDipFormContratto] = useState('');
+  const [dipFormLivello, setDipFormLivello] = useState('');
+  const [dipFormRal, setDipFormRal] = useState('');
+  const [dipFormIban, setDipFormIban] = useState('');
+  const [dipFormIndirizzo, setDipFormIndirizzo] = useState('');
+
+  // --- Generate Cedolino form state ---
+  const [cedFormDipendente, setCedFormDipendente] = useState('');
+  const [cedFormMese, setCedFormMese] = useState('');
+  const [cedFormAnno, setCedFormAnno] = useState('');
 
   // --- Dipendenti tab state ---
   const [dipSearch, setDipSearch] = useState('');
@@ -57,6 +80,130 @@ export default function PayrollPage() {
   // TODO: Replace with Supabase query
   const costoMensile = dipendenti.reduce((s, d) => s + d.ralLorda / 13, 0);
   const costoAnnuale = dipendenti.reduce((s, d) => s + d.ralLorda, 0);
+
+  // --- Reset new dipendente form ---
+  const resetDipForm = () => {
+    setDipFormNome('');
+    setDipFormCognome('');
+    setDipFormEmail('');
+    setDipFormCf('');
+    setDipFormNascita('');
+    setDipFormRuolo('');
+    setDipFormContratto('');
+    setDipFormLivello('');
+    setDipFormRal('');
+    setDipFormIban('');
+    setDipFormIndirizzo('');
+  };
+
+  // --- Reset cedolino form ---
+  const resetCedForm = () => {
+    setCedFormDipendente('');
+    setCedFormMese('');
+    setCedFormAnno('');
+  };
+
+  // --- Handle create dipendente ---
+  const handleCreateDipendente = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    try {
+      const res = await createDipendente({
+        tenantId,
+        nome: dipFormNome,
+        cognome: dipFormCognome,
+        email: dipFormEmail,
+        codiceFiscale: dipFormCf,
+        dataNascita: dipFormNascita,
+        luogoNascita: '',
+        indirizzo: dipFormIndirizzo,
+        telefono: '',
+        ruoloAziendale: dipFormRuolo,
+        tipoContratto: (dipFormContratto || 'indeterminato') as 'indeterminato' | 'determinato' | 'apprendistato' | 'collaborazione',
+        dataAssunzione: new Date().toISOString().split('T')[0],
+        ralLorda: dipFormRal || '0',
+        livello: dipFormLivello,
+        iban: dipFormIban,
+      });
+      if (!res.ok) {
+        alert(`Errore: ${res.error}`);
+      } else {
+        resetDipForm();
+        setNewDipOpen(false);
+        refresh();
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // --- Handle create cedolino ---
+  const handleCreateCedolino = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!cedFormDipendente) return;
+    setSubmitting(true);
+    try {
+      const dip = dipendenti.find((d) => d.id === cedFormDipendente);
+      const lordo = dip ? dip.ralLorda / 13 : 0;
+      const inps = lordo * 0.0919;
+      const imponibile = lordo - inps;
+      const irpef = imponibile * 0.23;
+      const addReg = imponibile * 0.0173;
+      const addCom = imponibile * 0.008;
+      const netto = lordo - inps - irpef - addReg - addCom;
+
+      const res = await createCedolino({
+        tenantId,
+        dipendenteId: cedFormDipendente,
+        mese: Number(cedFormMese) || new Date().getMonth() + 1,
+        anno: Number(cedFormAnno) || new Date().getFullYear(),
+        lordo: String(Math.round(lordo * 100) / 100),
+        contributiInps: String(Math.round(inps * 100) / 100),
+        irpef: String(Math.round(irpef * 100) / 100),
+        addizionaleRegionale: String(Math.round(addReg * 100) / 100),
+        addizionaleComunale: String(Math.round(addCom * 100) / 100),
+        altreRitenute: '0',
+        netto: String(Math.round(netto * 100) / 100),
+      });
+      if (!res.ok) {
+        alert(`Errore: ${res.error}`);
+      } else {
+        resetCedForm();
+        setNewCedOpen(false);
+        refresh();
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // --- Handle delete dipendente ---
+  const handleDeleteDipendente = async (id: string, nome: string) => {
+    if (!confirm(`Eliminare il dipendente "${nome}"?`)) return;
+    setSubmitting(true);
+    try {
+      const res = await deleteDipendente(id);
+      if (!res.ok) alert(`Errore: ${res.error}`);
+      else refresh();
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // --- Handle bulk delete ---
+  const handleBulkDelete = async () => {
+    if (!confirm(`Eliminare ${selectedIds.size} dipendente/i selezionati?`)) return;
+    setSubmitting(true);
+    try {
+      for (const id of selectedIds) {
+        await deleteDipendente(id);
+      }
+      setSelectedIds(new Set());
+      refresh();
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   // --- Filtered dipendenti ---
   const filteredDipendenti = useMemo(() => {
@@ -185,7 +332,7 @@ export default function PayrollPage() {
             <Download className="h-4 w-4 mr-2" />
             Esporta
           </Button>
-          <Dialog>
+          <Dialog open={newCedOpen} onOpenChange={setNewCedOpen}>
             <DialogTrigger className="inline-flex items-center justify-center rounded-md text-sm font-medium border border-input bg-background hover:bg-accent hover:text-accent-foreground h-8 px-3">
                 <FileDown className="h-4 w-4 mr-2" />
                 Genera Cedolino
@@ -195,15 +342,12 @@ export default function PayrollPage() {
                 <DialogTitle>Genera Cedolino</DialogTitle>
               </DialogHeader>
               <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  alert('Demo: Cedolino generato con successo!');
-                }}
+                onSubmit={handleCreateCedolino}
                 className="space-y-4"
               >
                 <div className="space-y-2">
                   <Label htmlFor="ced-dipendente">Dipendente *</Label>
-                  <Select>
+                  <Select value={cedFormDipendente} onValueChange={(v) => v && setCedFormDipendente(v)}>
                     <SelectTrigger id="ced-dipendente">
                       <SelectValue placeholder="Seleziona dipendente" />
                     </SelectTrigger>
@@ -217,20 +361,20 @@ export default function PayrollPage() {
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-2">
                     <Label htmlFor="ced-mese">Mese</Label>
-                    <Input id="ced-mese" type="number" min="1" max="12" placeholder="1-12" />
+                    <Input id="ced-mese" type="number" min="1" max="12" placeholder="1-12" value={cedFormMese} onChange={(e) => setCedFormMese(e.target.value)} />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="ced-anno">Anno</Label>
-                    <Input id="ced-anno" type="number" min="2020" placeholder="2026" />
+                    <Input id="ced-anno" type="number" min="2020" placeholder="2026" value={cedFormAnno} onChange={(e) => setCedFormAnno(e.target.value)} />
                   </div>
                 </div>
-                <Button type="submit" className="w-full bg-[#1a2332] hover:bg-[#1a2332]/90 text-white">
-                  Genera
+                <Button type="submit" className="w-full bg-[#1a2332] hover:bg-[#1a2332]/90 text-white" disabled={submitting}>
+                  {submitting ? 'Generazione...' : 'Genera'}
                 </Button>
               </form>
             </DialogContent>
           </Dialog>
-          <Dialog>
+          <Dialog open={newDipOpen} onOpenChange={(open) => { setNewDipOpen(open); if (!open) resetDipForm(); }}>
             <DialogTrigger className="inline-flex items-center justify-center rounded-md text-sm font-medium h-8 px-3 bg-[#1a2332] text-white hover:bg-[#1a2332]/90">
                 <Plus className="h-4 w-4 mr-2" />
                 Nuovo Dipendente
@@ -240,44 +384,41 @@ export default function PayrollPage() {
                 <DialogTitle>Nuovo Dipendente</DialogTitle>
               </DialogHeader>
               <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  alert('Demo: Dipendente salvato con successo!');
-                }}
+                onSubmit={handleCreateDipendente}
                 className="space-y-4 max-h-[70vh] overflow-y-auto pr-1"
               >
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-2">
                     <Label htmlFor="dip-nome">Nome *</Label>
-                    <Input id="dip-nome" placeholder="Nome" required />
+                    <Input id="dip-nome" placeholder="Nome" required value={dipFormNome} onChange={(e) => setDipFormNome(e.target.value)} />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="dip-cognome">Cognome *</Label>
-                    <Input id="dip-cognome" placeholder="Cognome" required />
+                    <Input id="dip-cognome" placeholder="Cognome" required value={dipFormCognome} onChange={(e) => setDipFormCognome(e.target.value)} />
                   </div>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="dip-email">Email</Label>
-                  <Input id="dip-email" type="email" placeholder="email@esempio.it" />
+                  <Input id="dip-email" type="email" placeholder="email@esempio.it" value={dipFormEmail} onChange={(e) => setDipFormEmail(e.target.value)} />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-2">
                     <Label htmlFor="dip-cf">Codice Fiscale</Label>
-                    <Input id="dip-cf" placeholder="RSSMRA80A01H501Z" />
+                    <Input id="dip-cf" placeholder="RSSMRA80A01H501Z" value={dipFormCf} onChange={(e) => setDipFormCf(e.target.value)} />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="dip-nascita">Data Nascita</Label>
-                    <Input id="dip-nascita" type="date" />
+                    <Input id="dip-nascita" type="date" value={dipFormNascita} onChange={(e) => setDipFormNascita(e.target.value)} />
                   </div>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="dip-ruolo">Ruolo Aziendale</Label>
-                  <Input id="dip-ruolo" placeholder="es. Sviluppatore, Commerciale..." />
+                  <Input id="dip-ruolo" placeholder="es. Sviluppatore, Commerciale..." value={dipFormRuolo} onChange={(e) => setDipFormRuolo(e.target.value)} />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-2">
                     <Label htmlFor="dip-contratto">Tipo Contratto</Label>
-                    <Select>
+                    <Select value={dipFormContratto} onValueChange={(v) => v && setDipFormContratto(v)}>
                       <SelectTrigger id="dip-contratto">
                         <SelectValue placeholder="Seleziona tipo" />
                       </SelectTrigger>
@@ -290,23 +431,23 @@ export default function PayrollPage() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="dip-livello">Livello</Label>
-                    <Input id="dip-livello" placeholder="es. 3A, 4, 5..." />
+                    <Input id="dip-livello" placeholder="es. 3A, 4, 5..." value={dipFormLivello} onChange={(e) => setDipFormLivello(e.target.value)} />
                   </div>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="dip-ral">RAL Lorda</Label>
-                  <Input id="dip-ral" type="number" step="0.01" min="0" placeholder="0.00" />
+                  <Input id="dip-ral" type="number" step="0.01" min="0" placeholder="0.00" value={dipFormRal} onChange={(e) => setDipFormRal(e.target.value)} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="dip-iban">IBAN</Label>
-                  <Input id="dip-iban" placeholder="IT60X0542811101000000123456" />
+                  <Input id="dip-iban" placeholder="IT60X0542811101000000123456" value={dipFormIban} onChange={(e) => setDipFormIban(e.target.value)} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="dip-indirizzo">Indirizzo</Label>
-                  <Input id="dip-indirizzo" placeholder="Via Roma 1, 00100 Roma (RM)" />
+                  <Input id="dip-indirizzo" placeholder="Via Roma 1, 00100 Roma (RM)" value={dipFormIndirizzo} onChange={(e) => setDipFormIndirizzo(e.target.value)} />
                 </div>
-                <Button type="submit" className="w-full bg-[#1a2332] hover:bg-[#1a2332]/90 text-white">
-                  Salva Dipendente
+                <Button type="submit" className="w-full bg-[#1a2332] hover:bg-[#1a2332]/90 text-white" disabled={submitting}>
+                  {submitting ? 'Salvataggio...' : 'Salva Dipendente'}
                 </Button>
               </form>
             </DialogContent>
@@ -417,10 +558,8 @@ export default function PayrollPage() {
                     variant="outline"
                     size="sm"
                     className="text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
-                    onClick={() => {
-                      alert(`Demo: Eliminazione di ${selectedIds.size} dipendente/i selezionati...`);
-                      setSelectedIds(new Set());
-                    }}
+                    disabled={submitting}
+                    onClick={handleBulkDelete}
                   >
                     <Trash2 className="h-4 w-4 mr-2" />
                     Elimina selezionati
@@ -543,7 +682,10 @@ export default function PayrollPage() {
                                 Modifica
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
-                              <DropdownMenuItem onClick={() => alert(`Demo: Eliminazione dipendente "${dip.nome} ${dip.cognome}"`)}>
+                              <DropdownMenuItem
+                                disabled={submitting}
+                                onClick={() => handleDeleteDipendente(dip.id, `${dip.nome} ${dip.cognome}`)}
+                              >
                                 <Trash2 className="h-4 w-4 mr-2 text-red-600" />
                                 <span className="text-red-600">Elimina</span>
                               </DropdownMenuItem>

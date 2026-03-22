@@ -21,7 +21,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Pagination } from '@/components/ui/pagination';
-import { fetchProdotti, fetchMovimentiMagazzino } from '@/lib/actions/data';
+import { fetchProdotti, fetchMovimentiMagazzino, createProdotto, updateProdotto, deleteProdotto, createMovimentoMagazzino } from '@/lib/actions/data';
 import { useServerData } from '@/lib/hooks/use-server-data';
 import { useAuth } from '@/lib/auth-context';
 import { formatCurrency, formatDate } from '@/lib/utils';
@@ -30,7 +30,7 @@ import { Search, Package, AlertTriangle, ArrowUpCircle, ArrowDownCircle, Plus, M
 export default function MagazzinoPage() {
   const { user } = useAuth();
   const tenantId = user?.tenantId || 't-1';
-  const [allData, loading] = useServerData(
+  const [allData, loading, refresh] = useServerData(
     () => Promise.all([fetchProdotti(tenantId), fetchMovimentiMagazzino(tenantId)]),
     [[], []]
   );
@@ -38,6 +38,7 @@ export default function MagazzinoPage() {
   const movimentiMagazzino = allData[1];
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategoria, setFilterCategoria] = useState<string>('tutte');
+  const [submitting, setSubmitting] = useState(false);
 
   // Pagination state for inventario tab
   const [invPage, setInvPage] = useState(1);
@@ -53,6 +54,151 @@ export default function MagazzinoPage() {
   // Detail view dialog state
   const [detailProduct, setDetailProduct] = useState<typeof prodotti[number] | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
+
+  // Dialog open states
+  const [newProdOpen, setNewProdOpen] = useState(false);
+  const [newMovOpen, setNewMovOpen] = useState(false);
+
+  // --- New Product form state ---
+  const [prodFormNome, setProdFormNome] = useState('');
+  const [prodFormSku, setProdFormSku] = useState('');
+  const [prodFormCategoria, setProdFormCategoria] = useState('');
+  const [prodFormPrezzo, setProdFormPrezzo] = useState('');
+  const [prodFormUnita, setProdFormUnita] = useState('');
+  const [prodFormGiacenza, setProdFormGiacenza] = useState('');
+  const [prodFormScorta, setProdFormScorta] = useState('');
+
+  // --- New Movement form state ---
+  const [movFormProdotto, setMovFormProdotto] = useState('');
+  const [movFormTipo, setMovFormTipo] = useState('');
+  const [movFormQuantita, setMovFormQuantita] = useState('');
+  const [movFormMotivo, setMovFormMotivo] = useState('');
+
+  // --- Reset forms ---
+  const resetProdForm = () => {
+    setProdFormNome('');
+    setProdFormSku('');
+    setProdFormCategoria('');
+    setProdFormPrezzo('');
+    setProdFormUnita('');
+    setProdFormGiacenza('');
+    setProdFormScorta('');
+  };
+
+  const resetMovForm = () => {
+    setMovFormProdotto('');
+    setMovFormTipo('');
+    setMovFormQuantita('');
+    setMovFormMotivo('');
+  };
+
+  // --- Handle create prodotto ---
+  const handleCreateProdotto = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    try {
+      const res = await createProdotto({
+        tenantId,
+        nome: prodFormNome,
+        sku: prodFormSku,
+        descrizione: '',
+        prezzo: prodFormPrezzo || '0',
+        prezzoAcquisto: '0',
+        giacenza: Number(prodFormGiacenza) || 0,
+        scorteMinime: Number(prodFormScorta) || 0,
+        categoria: prodFormCategoria || 'Altro',
+        unita: prodFormUnita || 'pz',
+        iva: 22,
+      });
+      if (!res.ok) {
+        alert(`Errore: ${res.error}`);
+      } else {
+        resetProdForm();
+        setNewProdOpen(false);
+        refresh();
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // --- Handle create movimento ---
+  const handleCreateMovimento = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!movFormProdotto || !movFormTipo) return;
+    setSubmitting(true);
+    try {
+      const prod = prodotti.find((p) => p.id === movFormProdotto);
+      const res = await createMovimentoMagazzino({
+        tenantId,
+        prodottoId: movFormProdotto,
+        prodottoNome: prod?.nome || '',
+        tipo: movFormTipo as 'carico' | 'scarico',
+        quantita: Number(movFormQuantita) || 1,
+        motivo: movFormMotivo,
+      });
+      if (!res.ok) {
+        alert(`Errore: ${res.error}`);
+      } else {
+        resetMovForm();
+        setNewMovOpen(false);
+        refresh();
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // --- Handle delete prodotto ---
+  const handleDeleteProdotto = async (id: string, nome: string) => {
+    if (!confirm(`Eliminare il prodotto "${nome}"?`)) return;
+    setSubmitting(true);
+    try {
+      const res = await deleteProdotto(id);
+      if (!res.ok) alert(`Errore: ${res.error}`);
+      else refresh();
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // --- Handle bulk delete ---
+  const handleBulkDelete = async () => {
+    if (!confirm(`Eliminare ${selectedIds.size} prodotti selezionati?`)) return;
+    setSubmitting(true);
+    try {
+      for (const id of selectedIds) {
+        await deleteProdotto(id);
+      }
+      setSelectedIds(new Set());
+      refresh();
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // --- Handle quick carico/scarico ---
+  const handleQuickMovement = async (prodotto: typeof prodotti[number], tipo: 'carico' | 'scarico') => {
+    const qtyStr = prompt(`Quantita per ${tipo === 'carico' ? 'carico' : 'scarico'} di "${prodotto.nome}":`, '1');
+    if (!qtyStr) return;
+    const qty = Number(qtyStr);
+    if (!qty || qty <= 0) return;
+    setSubmitting(true);
+    try {
+      const res = await createMovimentoMagazzino({
+        tenantId,
+        prodottoId: prodotto.id,
+        prodottoNome: prodotto.nome,
+        tipo,
+        quantita: qty,
+        motivo: tipo === 'carico' ? 'Carico rapido' : 'Scarico rapido',
+      });
+      if (!res.ok) alert(`Errore: ${res.error}`);
+      else refresh();
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   // TODO: Replace with Supabase query
   const categorie = useMemo(() => {
@@ -137,7 +283,7 @@ export default function MagazzinoPage() {
             <Download className="h-4 w-4 mr-2" />
             Esporta
           </Button>
-          <Dialog>
+          <Dialog open={newMovOpen} onOpenChange={(open) => { setNewMovOpen(open); if (!open) resetMovForm(); }}>
             <DialogTrigger className="inline-flex items-center justify-center rounded-md text-sm font-medium border border-input bg-background hover:bg-accent hover:text-accent-foreground h-8 px-3">
                 <ArrowUpCircle className="h-4 w-4 mr-2" />
                 Movimento Magazzino
@@ -147,15 +293,12 @@ export default function MagazzinoPage() {
                 <DialogTitle>Nuovo Movimento Magazzino</DialogTitle>
               </DialogHeader>
               <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  alert('Demo: Movimento magazzino registrato con successo!');
-                }}
+                onSubmit={handleCreateMovimento}
                 className="space-y-4"
               >
                 <div className="space-y-2">
                   <Label htmlFor="mov-prodotto">Prodotto *</Label>
-                  <Select>
+                  <Select value={movFormProdotto} onValueChange={(v) => v && setMovFormProdotto(v)}>
                     <SelectTrigger id="mov-prodotto">
                       <SelectValue placeholder="Seleziona prodotto" />
                     </SelectTrigger>
@@ -168,7 +311,7 @@ export default function MagazzinoPage() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="mov-tipo">Tipo *</Label>
-                  <Select>
+                  <Select value={movFormTipo} onValueChange={(v) => v && setMovFormTipo(v)}>
                     <SelectTrigger id="mov-tipo">
                       <SelectValue placeholder="Seleziona tipo" />
                     </SelectTrigger>
@@ -180,19 +323,19 @@ export default function MagazzinoPage() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="mov-quantita">Quantit&agrave;</Label>
-                  <Input id="mov-quantita" type="number" min="1" placeholder="0" />
+                  <Input id="mov-quantita" type="number" min="1" placeholder="0" value={movFormQuantita} onChange={(e) => setMovFormQuantita(e.target.value)} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="mov-motivo">Motivo</Label>
-                  <Input id="mov-motivo" placeholder="es. Acquisto fornitore, Vendita..." />
+                  <Input id="mov-motivo" placeholder="es. Acquisto fornitore, Vendita..." value={movFormMotivo} onChange={(e) => setMovFormMotivo(e.target.value)} />
                 </div>
-                <Button type="submit" className="w-full bg-[#1a2332] hover:bg-[#1a2332]/90 text-white">
-                  Registra Movimento
+                <Button type="submit" className="w-full bg-[#1a2332] hover:bg-[#1a2332]/90 text-white" disabled={submitting}>
+                  {submitting ? 'Registrazione...' : 'Registra Movimento'}
                 </Button>
               </form>
             </DialogContent>
           </Dialog>
-          <Dialog>
+          <Dialog open={newProdOpen} onOpenChange={(open) => { setNewProdOpen(open); if (!open) resetProdForm(); }}>
             <DialogTrigger className="inline-flex items-center justify-center rounded-md text-sm font-medium h-8 px-3 bg-[#1a2332] text-white hover:bg-[#1a2332]/90">
                 <Plus className="h-4 w-4 mr-2" />
                 Nuovo Prodotto
@@ -202,23 +345,20 @@ export default function MagazzinoPage() {
                 <DialogTitle>Nuovo Prodotto</DialogTitle>
               </DialogHeader>
               <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  alert('Demo: Prodotto salvato con successo!');
-                }}
+                onSubmit={handleCreateProdotto}
                 className="space-y-4"
               >
                 <div className="space-y-2">
                   <Label htmlFor="prod-nome">Nome Prodotto *</Label>
-                  <Input id="prod-nome" placeholder="Nome del prodotto" required />
+                  <Input id="prod-nome" placeholder="Nome del prodotto" required value={prodFormNome} onChange={(e) => setProdFormNome(e.target.value)} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="prod-sku">SKU</Label>
-                  <Input id="prod-sku" placeholder="es. MAT-001" />
+                  <Input id="prod-sku" placeholder="es. MAT-001" value={prodFormSku} onChange={(e) => setProdFormSku(e.target.value)} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="prod-categoria">Categoria</Label>
-                  <Select>
+                  <Select value={prodFormCategoria} onValueChange={(v) => v && setProdFormCategoria(v)}>
                     <SelectTrigger id="prod-categoria">
                       <SelectValue placeholder="Seleziona categoria" />
                     </SelectTrigger>
@@ -232,25 +372,25 @@ export default function MagazzinoPage() {
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-2">
                     <Label htmlFor="prod-prezzo">Prezzo</Label>
-                    <Input id="prod-prezzo" type="number" step="0.01" min="0" placeholder="0.00" />
+                    <Input id="prod-prezzo" type="number" step="0.01" min="0" placeholder="0.00" value={prodFormPrezzo} onChange={(e) => setProdFormPrezzo(e.target.value)} />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="prod-unita">Unit&agrave; di misura</Label>
-                    <Input id="prod-unita" placeholder="es. pz, kg, lt" />
+                    <Input id="prod-unita" placeholder="es. pz, kg, lt" value={prodFormUnita} onChange={(e) => setProdFormUnita(e.target.value)} />
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-2">
                     <Label htmlFor="prod-giacenza">Giacenza iniziale</Label>
-                    <Input id="prod-giacenza" type="number" min="0" placeholder="0" />
+                    <Input id="prod-giacenza" type="number" min="0" placeholder="0" value={prodFormGiacenza} onChange={(e) => setProdFormGiacenza(e.target.value)} />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="prod-scorta">Scorta minima</Label>
-                    <Input id="prod-scorta" type="number" min="0" placeholder="0" />
+                    <Input id="prod-scorta" type="number" min="0" placeholder="0" value={prodFormScorta} onChange={(e) => setProdFormScorta(e.target.value)} />
                   </div>
                 </div>
-                <Button type="submit" className="w-full bg-[#1a2332] hover:bg-[#1a2332]/90 text-white">
-                  Salva Prodotto
+                <Button type="submit" className="w-full bg-[#1a2332] hover:bg-[#1a2332]/90 text-white" disabled={submitting}>
+                  {submitting ? 'Salvataggio...' : 'Salva Prodotto'}
                 </Button>
               </form>
             </DialogContent>
@@ -358,10 +498,8 @@ export default function MagazzinoPage() {
                   <Button
                     variant="destructive"
                     size="sm"
-                    onClick={() => {
-                      alert(`Demo: Eliminazione di ${selectedIds.size} prodotti selezionati`);
-                      setSelectedIds(new Set());
-                    }}
+                    disabled={submitting}
+                    onClick={handleBulkDelete}
                   >
                     <Trash2 className="h-4 w-4 mr-2" />
                     Elimina selezionati
@@ -463,16 +601,25 @@ export default function MagazzinoPage() {
                                   <Pencil className="h-4 w-4 mr-2" />
                                   Modifica
                                 </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => alert(`Demo: Carico rapido per "${prodotto.nome}"`)}>
+                                <DropdownMenuItem
+                                  disabled={submitting}
+                                  onClick={() => handleQuickMovement(prodotto, 'carico')}
+                                >
                                   <ArrowUpCircle className="h-4 w-4 mr-2 text-green-600" />
                                   <span className="text-green-600">Carico Rapido</span>
                                 </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => alert(`Demo: Scarico rapido per "${prodotto.nome}"`)}>
+                                <DropdownMenuItem
+                                  disabled={submitting}
+                                  onClick={() => handleQuickMovement(prodotto, 'scarico')}
+                                >
                                   <ArrowDownCircle className="h-4 w-4 mr-2 text-red-600" />
                                   <span className="text-red-600">Scarico Rapido</span>
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />
-                                <DropdownMenuItem onClick={() => alert(`Demo: Eliminazione prodotto "${prodotto.nome}"`)}>
+                                <DropdownMenuItem
+                                  disabled={submitting}
+                                  onClick={() => handleDeleteProdotto(prodotto.id, prodotto.nome)}
+                                >
                                   <Trash2 className="h-4 w-4 mr-2 text-red-600" />
                                   <span className="text-red-600">Elimina</span>
                                 </DropdownMenuItem>
