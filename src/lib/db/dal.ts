@@ -74,6 +74,17 @@ export async function getProdotti(tenantId: string) {
   }));
 }
 
+export async function getProdottoById(id: string) {
+  const rows = await db.select().from(schema.prodotti).where(eq(schema.prodotti.id, id));
+  if (rows.length === 0) return null;
+  const r = rows[0];
+  return {
+    ...r,
+    prezzo: numericToNumber(r.prezzo),
+    prezzoAcquisto: numericToNumber(r.prezzoAcquisto),
+  };
+}
+
 // ==================== ORDINI ====================
 
 export async function getOrdini(tenantId: string) {
@@ -84,6 +95,18 @@ export async function getOrdini(tenantId: string) {
     iva: numericToNumber(r.iva),
     totale: numericToNumber(r.totale),
   }));
+}
+
+export async function getOrdineById(id: string) {
+  const rows = await db.select().from(schema.ordini).where(eq(schema.ordini.id, id));
+  if (rows.length === 0) return null;
+  const r = rows[0];
+  return {
+    ...r,
+    subtotale: numericToNumber(r.subtotale),
+    iva: numericToNumber(r.iva),
+    totale: numericToNumber(r.totale),
+  };
 }
 
 export async function getOrdiniByClienteId(tenantId: string, clienteId: string) {
@@ -109,6 +132,18 @@ export async function getFatture(tenantId: string) {
     iva: numericToNumber(r.iva),
     totale: numericToNumber(r.totale),
   }));
+}
+
+export async function getFatturaById(id: string) {
+  const rows = await db.select().from(schema.fatture).where(eq(schema.fatture.id, id));
+  if (rows.length === 0) return null;
+  const r = rows[0];
+  return {
+    ...r,
+    subtotale: numericToNumber(r.subtotale),
+    iva: numericToNumber(r.iva),
+    totale: numericToNumber(r.totale),
+  };
 }
 
 export async function getFattureByClienteId(tenantId: string, clienteId: string) {
