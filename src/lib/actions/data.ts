@@ -306,7 +306,7 @@ export async function fetchStatsPiattaforma() {
 
 // ==================== CRUD ACTIONS ====================
 
-type ActionResult = { ok: true } | { ok: false; error: string };
+type ActionResult = { ok: true; fatturaId?: string } | { ok: false; error: string };
 
 function genId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -516,8 +516,9 @@ export async function createFattura(data: {
 }): Promise<ActionResult> {
   try {
     const numero = await dal.getNextFatturaNumber(data.tenantId);
+    const id = genId('fat');
     await dal.createFattura({
-      id: genId('fat'),
+      id,
       tenantId: data.tenantId,
       numero,
       tipo: data.tipo,
@@ -535,7 +536,7 @@ export async function createFattura(data: {
       ordineId: data.ordineId,
     });
     revalidatePath('/dashboard/fatture');
-    return { ok: true };
+    return { ok: true, fatturaId: id };
   } catch (e) {
     return { ok: false, error: String(e) };
   }

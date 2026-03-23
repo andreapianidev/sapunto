@@ -118,21 +118,16 @@ export default function FatturePage() {
         return;
       }
 
-      // Se non è bozza, invia al SDI
-      if (!asBozza) {
-        // Refresh per ottenere l'ID della fattura appena creata
-        const updatedFatture = await fetchFatture(tenantId);
-        const nuovaFattura = updatedFatture.find(f => f.clienteId === formClienteId && f.statoSDI === 'bozza');
-        if (nuovaFattura) {
-          const sdiResult = await inviaFatturaSDI(nuovaFattura.id, tenantId);
-          if (!sdiResult.ok) {
-            const sdiErr = sdiResult as { ok: false; error: string; errori?: { campo: string; messaggio: string }[] };
-            if (sdiErr.errori && sdiErr.errori.length > 0) {
-              setSdiErrors(sdiErr.errori);
-              setShowSdiErrors(true);
-            } else {
-              alert(`Fattura creata come bozza. Errore invio SDI: ${sdiResult.error}`);
-            }
+      // Se non è bozza, invia al SDI usando l'ID restituito
+      if (!asBozza && result.fatturaId) {
+        const sdiResult = await inviaFatturaSDI(result.fatturaId, tenantId);
+        if (!sdiResult.ok) {
+          const sdiErr = sdiResult as { ok: false; error: string; errori?: { campo: string; messaggio: string }[] };
+          if (sdiErr.errori && sdiErr.errori.length > 0) {
+            setSdiErrors(sdiErr.errori);
+            setShowSdiErrors(true);
+          } else {
+            alert(`Fattura creata come bozza. Errore invio SDI: ${sdiResult.error}`);
           }
         }
       }

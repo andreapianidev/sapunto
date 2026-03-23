@@ -1,11 +1,17 @@
 'use client';
 
+import { useState } from 'react';
 import { PageContainer } from '@/components/layout/page-container';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
-  Server, CreditCard, Mail, HardDrive, Activity, Globe, Shield, Database,
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+} from '@/components/ui/table';
+import {
+  Server, CreditCard, Mail, HardDrive, Activity, Globe, Shield, Database, FileText,
 } from 'lucide-react';
+import { useServerData } from '@/lib/hooks/use-server-data';
+import { fetchTenants } from '@/lib/actions/data';
 
 const gatewayStatus = [
   { name: 'NexiPay (XPay)', status: 'Attivo', icon: CreditCard, color: 'bg-green-100 text-green-800' },
@@ -14,6 +20,8 @@ const gatewayStatus = [
 ];
 
 export default function ImpostazioniPage() {
+  const [tenants] = useServerData(() => fetchTenants(), []);
+
   return (
     <PageContainer title="Impostazioni Piattaforma" description="Configurazione e stato dei servizi Sapunto">
       <div className="grid gap-6 lg:grid-cols-2">
@@ -166,6 +174,66 @@ export default function ImpostazioniPage() {
                   </div>
                 ))}
               </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* SDI / Fatturazione Elettronica */}
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle className="text-base font-semibold flex items-center gap-2">
+              <FileText className="h-4 w-4" />
+              Fatturazione Elettronica (SDI)
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-4 sm:grid-cols-3">
+              <div className="p-3 bg-muted/50 rounded-lg text-center">
+                <p className="text-2xl font-bold">{tenants.length}</p>
+                <p className="text-xs text-muted-foreground">Tenant Totali</p>
+              </div>
+              <div className="p-3 bg-muted/50 rounded-lg text-center">
+                <p className="text-2xl font-bold text-green-600">{tenants.filter(t => t.stato === 'attivo').length}</p>
+                <p className="text-xs text-muted-foreground">Tenant Attivi</p>
+              </div>
+              <div className="p-3 bg-muted/50 rounded-lg text-center">
+                <p className="text-2xl font-bold text-blue-600">Simulato</p>
+                <p className="text-xs text-muted-foreground">Provider SDI Default</p>
+              </div>
+            </div>
+            <div>
+              <p className="text-sm font-medium mb-2">Configurazione SDI per Tenant</p>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Tenant</TableHead>
+                    <TableHead>P.IVA</TableHead>
+                    <TableHead>Codice Dest.</TableHead>
+                    <TableHead>PEC</TableHead>
+                    <TableHead>Stato</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {tenants.slice(0, 10).map((t) => (
+                    <TableRow key={t.id}>
+                      <TableCell className="font-medium text-sm">{t.ragioneSociale}</TableCell>
+                      <TableCell className="text-sm font-mono">{t.partitaIva}</TableCell>
+                      <TableCell className="text-sm font-mono">{t.codiceDestinatario || '-'}</TableCell>
+                      <TableCell className="text-sm">{t.pec || '-'}</TableCell>
+                      <TableCell>
+                        <Badge variant="secondary" className={`text-xs ${t.stato === 'attivo' ? 'bg-green-100 text-green-800' : t.stato === 'trial' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'}`}>
+                          {t.stato}
+                        </Badge>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+            <div className="p-3 bg-blue-50 rounded-lg text-sm text-blue-700">
+              Il provider SDI è configurato a livello di tenant (Impostazioni → Fatturazione).
+              Attualmente tutti i tenant usano il provider <strong>Simulato</strong> in attesa delle credenziali API dell&apos;intermediario.
+              Il cron job di polling SDI è attivo ogni 15 minuti.
             </div>
           </CardContent>
         </Card>
