@@ -16,7 +16,7 @@ import {
 import { fetchPreventivi, fetchClienti, createPreventivo, updatePreventivo, deletePreventivo } from '@/lib/actions/data';
 import { useServerData } from '@/lib/hooks/use-server-data';
 import { useAuth } from '@/lib/auth-context';
-import { formatCurrency, formatDate } from '@/lib/utils';
+import { formatCurrency, formatDate, exportCSV } from '@/lib/utils';
 import { Search, Plus, ClipboardList, CheckCircle, Clock, XCircle, Save, Send, MoreHorizontal, Pencil, Trash2, Copy, Download } from 'lucide-react';
 import { Pagination } from '@/components/ui/pagination';
 
@@ -78,15 +78,14 @@ export default function PreventiviPage() {
     }
   };
 
-  const exportCSV = (rows: typeof preventivi) => {
-    const header = 'Numero,Cliente,Oggetto,Data,Scadenza,Stato,Totale';
-    const csv = [header, ...rows.map((p) => `${p.numero},${p.clienteNome},${p.oggetto},${p.data},${p.dataScadenza},${p.stato},${p.totale}`)].join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = 'preventivi.csv'; a.click();
-    URL.revokeObjectURL(url);
-  };
+  const preventiviColumns = [
+    { key: 'numero', label: 'Numero' },
+    { key: 'clienteNome', label: 'Cliente' },
+    { key: 'data', label: 'Data' },
+    { key: 'dataScadenza', label: 'Valido Fino' },
+    { key: 'totale', label: 'Totale' },
+    { key: 'stato', label: 'Stato' },
+  ];
 
   const resetCreateForm = () => {
     setFormClienteId('c-1');
@@ -202,7 +201,7 @@ export default function PreventiviPage() {
   return (
     <PageContainer title="Preventivi" description="Gestione offerte e preventivi" actions={
       <div className="flex items-center gap-2">
-        <Button variant="outline" size="sm" onClick={() => exportCSV(filtered)}>
+        <Button variant="outline" size="sm" onClick={() => exportCSV(filtered, preventiviColumns, 'preventivi')}>
           <Download className="mr-2 h-4 w-4" />Esporta
         </Button>
         <Dialog open={createDialogOpen} onOpenChange={(open) => { setCreateDialogOpen(open); if (!open) resetCreateForm(); }}>
@@ -240,7 +239,7 @@ export default function PreventiviPage() {
             <Button variant="destructive" size="sm" disabled={submitting} onClick={handleBulkDelete}>
               <Trash2 className="mr-2 h-4 w-4" />{submitting ? 'Eliminazione...' : 'Elimina selezionati'}
             </Button>
-            <Button variant="outline" size="sm" onClick={() => exportCSV(filtered.filter((p) => selectedIds.has(p.id)))}>
+            <Button variant="outline" size="sm" onClick={() => exportCSV(filtered.filter((p) => selectedIds.has(p.id)), preventiviColumns, 'preventivi-selezionati')}>
               <Download className="mr-2 h-4 w-4" />Esporta selezionati
             </Button>
           </CardContent>

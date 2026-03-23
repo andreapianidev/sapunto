@@ -20,7 +20,7 @@ import { Pagination } from '@/components/ui/pagination';
 import { fetchContratti, fetchClienti, createContratto, updateContratto, deleteContratto } from '@/lib/actions/data';
 import { useServerData } from '@/lib/hooks/use-server-data';
 import { useAuth } from '@/lib/auth-context';
-import { formatCurrency, formatDate } from '@/lib/utils';
+import { formatCurrency, formatDate, exportCSV } from '@/lib/utils';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Search, Plus, FileSignature, AlertTriangle, CheckCircle, Clock, Save, MoreHorizontal, Pencil, Trash2, Copy, Download, RefreshCw, Eye } from 'lucide-react';
 
@@ -122,15 +122,15 @@ export default function ContrattiPage() {
     setCurrentPage(1);
   };
 
-  const exportCSV = (rows: typeof contratti) => {
-    const header = 'Numero,Cliente,Oggetto,Tipo,Stato,Data Inizio,Data Fine,Valore Annuale,Rinnovo';
-    const csv = [header, ...rows.map((c) => `${c.numero},${c.clienteNome},${c.oggetto},${c.tipo},${c.stato},${c.dataInizio},${c.dataFine},${c.valoreAnnuale},${c.rinnovo}`)].join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = 'contratti.csv'; a.click();
-    URL.revokeObjectURL(url);
-  };
+  const contrattiColumns = [
+    { key: 'numero', label: 'Numero' },
+    { key: 'clienteNome', label: 'Cliente' },
+    { key: 'tipo', label: 'Tipo' },
+    { key: 'dataInizio', label: 'Data Inizio' },
+    { key: 'dataFine', label: 'Data Fine' },
+    { key: 'valoreAnnuale', label: 'Valore' },
+    { key: 'stato', label: 'Stato' },
+  ];
 
   const resetCreateForm = () => {
     setFormClienteId('c-1');
@@ -242,7 +242,7 @@ export default function ContrattiPage() {
       description="Gestione contratti clienti"
       actions={
         <div className="flex items-center gap-2">
-        <Button variant="outline" size="sm" onClick={() => exportCSV(filtered)}><Download className="mr-2 h-4 w-4" />Export CSV</Button>
+        <Button variant="outline" size="sm" onClick={() => exportCSV(filtered, contrattiColumns, 'contratti')}><Download className="mr-2 h-4 w-4" />Export CSV</Button>
         <Dialog open={createDialogOpen} onOpenChange={(open) => { setCreateDialogOpen(open); if (!open) resetCreateForm(); }}>
           <DialogTrigger className="inline-flex items-center justify-center rounded-md text-sm font-medium h-8 px-3 bg-[#1a2332] text-white hover:bg-[#1a2332]/90">
             <Plus className="mr-2 h-4 w-4" />
@@ -298,7 +298,7 @@ export default function ContrattiPage() {
           <CardContent className="p-3 flex items-center justify-between">
             <p className="text-sm font-medium">{selectedIds.size} element{selectedIds.size > 1 ? 'i' : 'o'} selezionat{selectedIds.size > 1 ? 'i' : 'o'}</p>
             <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={() => exportCSV(filtered.filter((c) => selectedIds.has(c.id)))}>
+              <Button variant="outline" size="sm" onClick={() => exportCSV(filtered.filter((c) => selectedIds.has(c.id)), contrattiColumns, 'contratti-selezionati')}>
                 <Download className="mr-2 h-4 w-4" />Esporta selezionati
               </Button>
               <Button variant="destructive" size="sm" disabled={submitting} onClick={handleBulkDelete}>

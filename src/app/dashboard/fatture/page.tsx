@@ -22,7 +22,7 @@ import { useServerData } from '@/lib/hooks/use-server-data';
 import { useAuth } from '@/lib/auth-context';
 import {
   formatCurrency, formatDate, getStatoSDIColor, getStatoSDILabel,
-  getStatoPagamentoColor,
+  getStatoPagamentoColor, exportCSV,
 } from '@/lib/utils';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
@@ -209,15 +209,15 @@ export default function FatturePage() {
     }
   };
 
-  const exportCSV = (rows: typeof fatture) => {
-    const header = 'Numero,Cliente,Data,Tipo,Stato SDI,Pagamento,Totale';
-    const csv = [header, ...rows.map((f) => `${f.numero},${f.clienteNome},${f.data},${f.tipo},${f.statoSDI},${f.stato},${f.totale}`)].join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = 'fatture.csv'; a.click();
-    URL.revokeObjectURL(url);
-  };
+  const fattureColumns = [
+    { key: 'numero', label: 'Numero' },
+    { key: 'clienteNome', label: 'Cliente' },
+    { key: 'data', label: 'Data' },
+    { key: 'dataScadenza', label: 'Scadenza' },
+    { key: 'totale', label: 'Totale' },
+    { key: 'stato', label: 'Stato Pagamento' },
+    { key: 'statoSDI', label: 'Stato SDI' },
+  ];
 
   // TODO: Replace with Supabase query
   const fattureEmesse = fatture.filter((f) => f.tipo === 'emessa');
@@ -246,7 +246,7 @@ export default function FatturePage() {
       description="Gestione fatture emesse e ricevute"
       actions={
         <div className="flex items-center gap-2">
-        <Button variant="outline" size="sm" onClick={() => exportCSV(filtered)}>
+        <Button variant="outline" size="sm" onClick={() => exportCSV(filtered, fattureColumns, 'fatture')}>
           <Download className="mr-2 h-4 w-4" />
           Esporta
         </Button>
@@ -451,7 +451,7 @@ export default function FatturePage() {
             <Button variant="destructive" size="sm" disabled={submitting} onClick={handleDeleteSelected}>
               <Trash2 className="mr-2 h-4 w-4" />{submitting ? 'Eliminazione...' : 'Elimina selezionati'}
             </Button>
-            <Button variant="outline" size="sm" onClick={() => exportCSV(filtered.filter((f) => selectedIds.has(f.id)))}>
+            <Button variant="outline" size="sm" onClick={() => exportCSV(filtered.filter((f) => selectedIds.has(f.id)), fattureColumns, 'fatture-selezionati')}>
               <Download className="mr-2 h-4 w-4" />Esporta selezionati
             </Button>
           </CardContent>

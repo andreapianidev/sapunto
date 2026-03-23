@@ -23,7 +23,7 @@ import { Pagination } from '@/components/ui/pagination';
 import { fetchNoteDiCredito, createNotaDiCredito, updateNotaDiCredito, deleteNotaDiCredito } from '@/lib/actions/data';
 import { useServerData } from '@/lib/hooks/use-server-data';
 import { useAuth } from '@/lib/auth-context';
-import { formatCurrency, formatDate } from '@/lib/utils';
+import { formatCurrency, formatDate, exportCSV } from '@/lib/utils';
 import { Plus, FileX, Save, MoreHorizontal, Pencil, Trash2, Copy, Download, Search, Eye } from 'lucide-react';
 import type { NotaDiCredito } from '@/lib/types';
 
@@ -197,21 +197,14 @@ export default function NoteCreditoPage() {
     }
   };
 
-  // --- CSV Export ---
-  const exportCSV = (rows: typeof noteDiCredito) => {
-    const header = 'Numero,Fattura Rif.,Cliente,Data,Motivo,Importo,IVA,Totale,Stato';
-    const csv = [
-      header,
-      ...rows.map((n) =>
-        `${n.numero},${n.fatturaNumero},${n.clienteNome},${n.data},"${n.motivo}",${n.importo},${n.iva},${n.totale},${n.stato}`
-      ),
-    ].join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = 'note-credito.csv'; a.click();
-    URL.revokeObjectURL(url);
-  };
+  // --- CSV Export columns ---
+  const noteCreditoColumns = [
+    { key: 'numero', label: 'Numero' },
+    { key: 'clienteNome', label: 'Cliente' },
+    { key: 'data', label: 'Data' },
+    { key: 'totale', label: 'Totale' },
+    { key: 'fatturaNumero', label: 'Fattura Riferimento' },
+  ];
 
   // --- Stats ---
   if (loading) return <div className="p-8 text-center">Caricamento...</div>;
@@ -224,7 +217,7 @@ export default function NoteCreditoPage() {
       description="Gestione note di credito emesse"
       actions={
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => exportCSV(filtered)}>
+          <Button variant="outline" size="sm" onClick={() => exportCSV(filtered, noteCreditoColumns, 'note-credito')}>
             <Download className="mr-2 h-4 w-4" />
             Esporta CSV
           </Button>
@@ -294,7 +287,7 @@ export default function NoteCreditoPage() {
             <Button variant="destructive" size="sm" onClick={handleBulkDelete} disabled={submitting}>
               <Trash2 className="mr-2 h-4 w-4" />{submitting ? 'Eliminazione...' : 'Elimina selezionati'}
             </Button>
-            <Button variant="outline" size="sm" onClick={() => exportCSV(filtered.filter((n) => selectedIds.has(n.id)))}>
+            <Button variant="outline" size="sm" onClick={() => exportCSV(filtered.filter((n) => selectedIds.has(n.id)), noteCreditoColumns, 'note-credito-selezionati')}>
               <Download className="mr-2 h-4 w-4" />Esporta selezionati
             </Button>
           </CardContent>
