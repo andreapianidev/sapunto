@@ -14,7 +14,7 @@ import {
 import { fetchProgetti, fetchTasks, createProgetto, updateProgetto, deleteProgetto, createTask, updateTask, deleteTask } from '@/lib/actions/data';
 import { useServerData } from '@/lib/hooks/use-server-data';
 import { useAuth } from '@/lib/auth-context';
-import { formatCurrency, formatDate } from '@/lib/utils';
+import { formatCurrency, formatDate, exportCSV } from '@/lib/utils';
 import { Plus, FolderKanban, CheckCircle, Clock, Save, MoreHorizontal, Pencil, Trash2, Download, Search, Eye, ListTodo, CalendarDays, User as UserIcon } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import type { StatoProgetto, StatoTask, Progetto } from '@/lib/types';
@@ -101,7 +101,7 @@ function SortableTaskCard({
             <MoreHorizontal className="h-3 w-3" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => alert('Demo: azione eseguita!')}>
+            <DropdownMenuItem onClick={() => { /* TODO: edit task dialog */ }}>
               <Pencil className="mr-2 h-3.5 w-3.5" />Modifica
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => onAdvanceStatus(task.id, task.stato as StatoTask)}>
@@ -330,7 +330,7 @@ export default function ProgettiPage() {
   return (
     <PageContainer title="Progetti" description="Gestione progetti e task" actions={
       <div className="flex items-center gap-2">
-      <Button variant="outline" size="sm" onClick={() => alert('Demo: azione eseguita!')}><Download className="mr-2 h-4 w-4" />Esporta</Button>
+      <Button variant="outline" size="sm" onClick={() => exportCSV(filteredProgetti as unknown as Record<string, unknown>[], [{ key: 'nome', label: 'Nome' }, { key: 'clienteNome', label: 'Cliente' }, { key: 'stato', label: 'Stato' }, { key: 'dataInizio', label: 'Data Inizio' }, { key: 'dataFinePrevista', label: 'Data Fine' }, { key: 'budget', label: 'Budget' }], 'progetti')}><Download className="mr-2 h-4 w-4" />Esporta</Button>
       <Dialog open={newProjectOpen} onOpenChange={(open) => { setNewProjectOpen(open); if (!open) resetNewProjectForm(); }}>
         <DialogTrigger className="inline-flex items-center justify-center rounded-md text-sm font-medium h-8 px-3 bg-[#1a2332] text-white hover:bg-[#1a2332]/90"><Plus className="mr-2 h-4 w-4" />Nuovo Progetto</DialogTrigger>
         <DialogContent className="sm:max-w-md">
@@ -407,7 +407,7 @@ export default function ProgettiPage() {
                           <MoreHorizontal className="h-3.5 w-3.5" />
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); alert('Demo: azione eseguita!'); }}>
+                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); /* TODO: edit project dialog */ }}>
                           <Pencil className="mr-2 h-3.5 w-3.5" />Modifica
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />

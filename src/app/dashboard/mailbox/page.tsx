@@ -21,7 +21,7 @@ import {
 import { fetchEmails, fetchClienti, createEmailRecord, updateEmailRecord, deleteEmailRecord } from '@/lib/actions/data';
 import { useServerData } from '@/lib/hooks/use-server-data';
 import { useAuth } from '@/lib/auth-context';
-import { formatDateTime } from '@/lib/utils';
+import { formatDateTime, exportCSV } from '@/lib/utils';
 import { Search, Plus, Mail, Send, Inbox, Archive, Circle, MoreHorizontal, Pencil, Trash2, Download, Forward } from 'lucide-react';
 import type { Email } from '@/lib/types';
 
@@ -157,7 +157,7 @@ export default function MailboxPage() {
       description={`${nonLette} messaggi non letti`}
       actions={
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => alert('Demo: esporta email!')}>
+          <Button variant="outline" size="sm" onClick={() => exportCSV(filtered as unknown as Record<string, unknown>[], [{ key: 'da', label: 'Mittente' }, { key: 'oggetto', label: 'Oggetto' }, { key: 'data', label: 'Data' }, { key: 'letto', label: 'Letto' }], 'email')}>
             <Download className="mr-2 h-4 w-4" />
             Esporta
           </Button>
@@ -298,10 +298,10 @@ export default function MailboxPage() {
                         <MoreHorizontal className="h-4 w-4" />
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => alert('Demo: azione eseguita!')}>
+                        <DropdownMenuItem onClick={() => { handleMarkAsRead(email); setSelectedEmail(email); /* TODO: reply dialog */ }}>
                           <Mail className="mr-2 h-4 w-4" />Rispondi
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => alert('Demo: azione eseguita!')}>
+                        <DropdownMenuItem onClick={() => { handleMarkAsRead(email); setSelectedEmail(email); /* TODO: forward dialog */ }}>
                           <Forward className="mr-2 h-4 w-4" />Inoltra
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
