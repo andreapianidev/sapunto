@@ -1,5 +1,5 @@
 import { db } from './index';
-import { eq, desc, and, sql } from 'drizzle-orm';
+import { eq, desc, and, sql, inArray } from 'drizzle-orm';
 import * as schema from './schema';
 
 // Helper to convert numeric strings back to numbers
@@ -232,8 +232,11 @@ export async function updateIntegrazione(id: string, data: Partial<typeof schema
 
 // ==================== LOG SYNC ====================
 
-export async function getLogSync() {
-  return db.select().from(schema.logSync);
+export async function getLogSync(tenantId: string) {
+  const integrazioni = await db.select({ id: schema.integrazioniEcommerce.id }).from(schema.integrazioniEcommerce).where(eq(schema.integrazioniEcommerce.tenantId, tenantId));
+  if (integrazioni.length === 0) return [];
+  const ids = integrazioni.map(i => i.id);
+  return db.select().from(schema.logSync).where(inArray(schema.logSync.integrazioneId, ids));
 }
 
 export async function createLogSync(data: typeof schema.logSync.$inferInsert) {

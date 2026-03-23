@@ -159,10 +159,22 @@ export default function ReportPage() {
               <CardHeader><CardTitle className="text-base">Nuovi Clienti per Mese</CardTitle></CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={250}>
-                  <BarChart data={[
-                    { mese: 'Ott', nuovi: 3 }, { mese: 'Nov', nuovi: 2 }, { mese: 'Dic', nuovi: 1 },
-                    { mese: 'Gen', nuovi: 2 }, { mese: 'Feb', nuovi: 3 }, { mese: 'Mar', nuovi: 1 },
-                  ]}>
+                  <BarChart data={(() => {
+                    const mesi = ['Gen', 'Feb', 'Mar', 'Apr', 'Mag', 'Giu', 'Lug', 'Ago', 'Set', 'Ott', 'Nov', 'Dic'];
+                    const counts: Record<string, number> = {};
+                    clienti.forEach((c: any) => {
+                      const d = c.dataCreazione || c.data;
+                      if (d) { const m = mesi[parseInt(d.slice(5, 7), 10) - 1]; if (m) counts[m] = (counts[m] || 0) + 1; }
+                    });
+                    const now = new Date();
+                    const result = [];
+                    for (let i = 5; i >= 0; i--) {
+                      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+                      const m = mesi[d.getMonth()];
+                      result.push({ mese: m, nuovi: counts[m] || 0 });
+                    }
+                    return result;
+                  })()}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                     <XAxis dataKey="mese" tick={{ fontSize: 12 }} />
                     <YAxis tick={{ fontSize: 12 }} />

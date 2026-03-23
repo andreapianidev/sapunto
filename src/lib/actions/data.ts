@@ -93,8 +93,8 @@ export async function fetchIntegrazioniEcommerce(tenantId: string) {
 }
 
 // ==================== LOG SYNC ====================
-export async function fetchLogSync() {
-  return dal.getLogSync();
+export async function fetchLogSync(tenantId: string) {
+  return dal.getLogSync(tenantId);
 }
 
 // ==================== PREVENTIVI ====================

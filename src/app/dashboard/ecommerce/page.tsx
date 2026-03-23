@@ -17,7 +17,7 @@ export default function EcommercePage() {
   const { user } = useAuth();
   const tenantId = user!.tenantId;
   const [allData, loading, refresh] = useServerData(
-    () => Promise.all([fetchIntegrazioniEcommerce(tenantId), fetchLogSync()]),
+    () => Promise.all([fetchIntegrazioniEcommerce(tenantId), fetchLogSync(tenantId)]),
     [[], []]
   );
   const integrazioniEcommerce = allData[0];
@@ -31,6 +31,17 @@ export default function EcommercePage() {
       description="Stato connessioni e sincronizzazione"
     >
       {/* Integration Cards */}
+      {integrazioniEcommerce.length === 0 && (
+        <Card>
+          <CardContent className="py-12 text-center">
+            <ShoppingBag className="h-12 w-12 text-muted-foreground/40 mx-auto mb-3" />
+            <h3 className="text-lg font-semibold mb-1">Nessuna integrazione configurata</h3>
+            <p className="text-sm text-muted-foreground max-w-md mx-auto">
+              Le integrazioni e-commerce (WooCommerce, PrestaShop, Shopify) saranno disponibili nella sezione Impostazioni.
+            </p>
+          </CardContent>
+        </Card>
+      )}
       <div className="grid gap-4 md:grid-cols-3">
         {integrazioniEcommerce.map((int) => (
           <Card key={int.id} className={int.stato === 'prossimamente' ? 'opacity-60' : ''}>
@@ -105,6 +116,7 @@ export default function EcommercePage() {
       </div>
 
       {/* Sync Log */}
+      {logSync.length > 0 && (
       <Card>
         <CardHeader>
           <CardTitle className="text-base font-semibold">Log Sincronizzazione</CardTitle>
@@ -153,6 +165,7 @@ export default function EcommercePage() {
           </Table>
         </CardContent>
       </Card>
+      )}
     </PageContainer>
   );
 }
