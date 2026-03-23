@@ -402,7 +402,7 @@ export default function LandingPage() {
                 Accedi
               </Link>
               <Link
-                href="/login"
+                href="/signup"
                 className="inline-flex items-center gap-2 rounded-xl bg-[#1a2332] px-5 py-2.5 text-[14px] font-semibold text-white hover:bg-[#243044] transition-all duration-200 shadow-md shadow-[#1a2332]/15 hover:shadow-lg hover:shadow-[#1a2332]/20"
               >
                 Prova Gratuita
@@ -454,7 +454,7 @@ export default function LandingPage() {
             {/* CTA Buttons */}
             <div className="mt-12 flex flex-col sm:flex-row items-center justify-center gap-4 animate-fade-in-up animation-delay-300">
               <Link
-                href="/login"
+                href="/signup"
                 className="group inline-flex items-center gap-3 rounded-2xl bg-white px-8 py-4 text-[15px] font-bold text-[#1a2332] hover:bg-gray-50 transition-all duration-300 shadow-2xl shadow-black/25 hover:shadow-black/35 hover:scale-[1.02]"
               >
                 Inizia la Prova Gratuita
@@ -704,7 +704,7 @@ export default function LandingPage() {
                 ))}
               </div>
               <div className="mt-10">
-                <Link href="/login" className="inline-flex items-center gap-2 rounded-xl bg-[#1a2332] px-6 py-3 text-[14px] font-semibold text-white hover:bg-[#243044] transition-all shadow-md">
+                <Link href="/signup" className="inline-flex items-center gap-2 rounded-xl bg-[#1a2332] px-6 py-3 text-[14px] font-semibold text-white hover:bg-[#243044] transition-all shadow-md">
                   Prova la Fatturazione
                   <ArrowRight className="h-4 w-4" />
                 </Link>
@@ -963,7 +963,7 @@ export default function LandingPage() {
           {/* CTA */}
           <div className="text-center mt-16">
             <Link
-              href="/login"
+              href="/signup"
               className="inline-flex items-center gap-2 rounded-2xl bg-[#1a2332] px-8 py-4 text-[15px] font-bold text-white hover:bg-[#243044] transition-all shadow-lg shadow-[#1a2332]/15 hover:shadow-xl hover:scale-[1.02]"
             >
               Crea il tuo Account Gratuito
@@ -1341,7 +1341,7 @@ export default function LandingPage() {
 
           <div className="mt-12 flex flex-col sm:flex-row items-center justify-center gap-4">
             <Link
-              href="/login"
+              href="/signup"
               className="group inline-flex items-center gap-3 rounded-2xl bg-white px-10 py-5 text-[16px] font-bold text-[#1a2332] hover:bg-gray-50 transition-all duration-300 shadow-2xl shadow-black/25 hover:scale-[1.02]"
             >
               Inizia la Prova Gratuita

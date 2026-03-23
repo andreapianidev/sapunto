@@ -8,7 +8,13 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { AlertCircle, Loader2 } from 'lucide-react';
+import { AlertCircle, Loader2, Shield, Building2, User as UserIcon } from 'lucide-react';
+
+const demoAccounts = [
+  { label: 'Super Admin', desc: 'Gestione piattaforma', email: 'admin@sapunto.cloud', icon: Shield },
+  { label: 'Amministratore', desc: 'Rossi Elettronica', email: 'luigi@rossielettonica.it', icon: Building2 },
+  { label: 'Operatore', desc: 'Accesso limitato', email: 'anna@rossielettonica.it', icon: UserIcon },
+];
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -25,7 +31,6 @@ export default function LoginPage() {
 
     const result = await login(email, password);
     if (result.ok) {
-      // Redirect based on session — fetch session to determine role
       const sessionRes = await fetch('/api/auth/session');
       const session = await sessionRes.json();
       if (session.user?.ruolo === 'superadmin') {
@@ -39,6 +44,25 @@ export default function LoginPage() {
     }
   };
 
+  const quickLogin = async (demoEmail: string) => {
+    setEmail(demoEmail);
+    setPassword('demo12345');
+    setError('');
+    setSubmitting(true);
+    const result = await login(demoEmail, 'demo12345');
+    if (result.ok) {
+      const sessionRes = await fetch('/api/auth/session');
+      const session = await sessionRes.json();
+      if (session.user?.ruolo === 'superadmin') {
+        router.push('/superadmin');
+      } else {
+        router.push('/dashboard');
+      }
+    } else {
+      setError(result.error || 'Errore di login');
+      setSubmitting(false);
+    }
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#1a2332] via-[#1e3a5f] to-[#1a2332] p-4">
@@ -62,6 +86,40 @@ export default function LoginPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
+            {/* Accesso rapido per Adriano */}
+            <div className="mb-6 rounded-lg bg-blue-50 border border-blue-200 p-4">
+              <p className="text-sm font-medium text-blue-900 mb-3">
+                Ciao Adriano! Clicca per accedere subito:
+              </p>
+              <div className="space-y-2">
+                {demoAccounts.map((acc) => {
+                  const Icon = acc.icon;
+                  return (
+                    <button
+                      key={acc.email}
+                      type="button"
+                      disabled={submitting}
+                      onClick={() => quickLogin(acc.email)}
+                      className="w-full flex items-center gap-3 rounded-lg border border-blue-200 bg-white px-3 py-2.5 text-left hover:bg-blue-50 transition-colors disabled:opacity-50"
+                    >
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#1a2332] text-white">
+                        <Icon className="h-4 w-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-slate-900">{acc.label}</p>
+                        <p className="text-xs text-slate-500">{acc.desc}</p>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="relative mb-4">
+              <div className="absolute inset-0 flex items-center"><div className="w-full border-t" /></div>
+              <div className="relative flex justify-center text-xs"><span className="bg-white px-2 text-muted-foreground">oppure accedi con le tue credenziali</span></div>
+            </div>
+
             <form onSubmit={handleLogin} className="space-y-4">
               {error && (
                 <div className="flex items-center gap-2 rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-700">
