@@ -20,9 +20,10 @@ import {
 } from '@/components/ui/select';
 import { useAuth } from '@/lib/auth-context';
 import { fetchUsersByTenantId, fetchPiani, updateTenantAdmin, createUserAdmin, updateUserAdmin, deleteUserAdmin } from '@/lib/actions/data';
+import { salvaConfigurazioneSdi, fetchConfigurazioneSdi } from '@/lib/actions/sdi';
 import { useServerData } from '@/lib/hooks/use-server-data';
 import { formatPIVA, formatCurrency } from '@/lib/utils';
-import { Building2, Users, FileText, CreditCard, Save, Plus, Loader2, Trash2 } from 'lucide-react';
+import { Building2, Users, FileText, CreditCard, Save, Plus, Loader2, Trash2, CheckCircle } from 'lucide-react';
 
 export default function ImpostazioniPage() {
   const { tenant, user, refreshSession } = useAuth();
@@ -37,6 +38,55 @@ export default function ImpostazioniPage() {
   const [saving, setSaving] = useState(false);
   const [showInviteDialog, setShowInviteDialog] = useState(false);
   const [inviteForm, setInviteForm] = useState({ nome: '', cognome: '', email: '', ruolo: 'utente' as 'tenant_admin' | 'utente' });
+
+  // SDI Configuration state
+  const [sdiProvider, setSdiProvider] = useState<string>('simulato');
+  const [sdiApiKey, setSdiApiKey] = useState('');
+  const [sdiApiSecret, setSdiApiSecret] = useState('');
+  const [sdiRegime, setSdiRegime] = useState('RF01');
+  const [sdiPagamento, setSdiPagamento] = useState('MP05');
+  const [sdiIban, setSdiIban] = useState('');
+  const [sdiSaving, setSdiSaving] = useState(false);
+  const [sdiSaved, setSdiSaved] = useState(false);
+  const [sdiLoaded, setSdiLoaded] = useState(false);
+
+  // Load SDI config on mount
+  if (!sdiLoaded && tenantId) {
+    setSdiLoaded(true);
+    fetchConfigurazioneSdi(tenantId).then((config) => {
+      if (config) {
+        setSdiProvider(config.provider);
+        setSdiApiKey(config.apiKey || '');
+        setSdiApiSecret(config.apiSecret || '');
+        setSdiRegime(config.regimeFiscale || 'RF01');
+        setSdiPagamento(config.modalitaPagamentoDefault || 'MP05');
+        setSdiIban(config.ibanBeneficiario || '');
+      }
+    });
+  }
+
+  const handleSaveSdiConfig = async () => {
+    setSdiSaving(true);
+    setSdiSaved(false);
+    try {
+      const result = await salvaConfigurazioneSdi(tenantId, {
+        provider: sdiProvider as 'simulato' | 'fattura24' | 'fattureincloud' | 'manuale',
+        apiKey: sdiApiKey || undefined,
+        apiSecret: sdiApiSecret || undefined,
+        regimeFiscale: sdiRegime,
+        modalitaPagamentoDefault: sdiPagamento,
+        ibanBeneficiario: sdiIban || undefined,
+      });
+      if (result.ok) {
+        setSdiSaved(true);
+        setTimeout(() => setSdiSaved(false), 3000);
+      } else {
+        alert(result.error || 'Errore nel salvataggio');
+      }
+    } finally {
+      setSdiSaving(false);
+    }
+  };
 
   if (!tenant) return null;
   if (loading) return <div className="p-8 text-center">Caricamento...</div>;
@@ -245,37 +295,91 @@ export default function ImpostazioniPage() {
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
                   <Label>Codice Destinatario SDI</Label>
-                  <Input defaultValue={tenant.codiceDestinatario} className="mt-1" />
+                  <Input defaultValue={tenant.codiceDestinatario} className="mt-1" readOnly />
                 </div>
                 <div>
                   <Label>PEC per Fatturazione</Label>
-                  <Input defaultValue={tenant.pec} className="mt-1" />
-                </div>
-                <div>
-                  <Label>Regime Fiscale</Label>
-                  <Input defaultValue="RF01 - Ordinario" className="mt-1" readOnly />
-                </div>
-                <div>
-                  <Label>Progressivo Fatture</Label>
-                  <Input defaultValue="FE-2026-0040" className="mt-1" readOnly />
+                  <Input defaultValue={tenant.pec} className="mt-1" readOnly />
                 </div>
               </div>
               <Separator />
-              <div>
-                <p className="text-sm font-medium mb-2">Certificato Firma Digitale</p>
-                <div className="p-4 border border-dashed rounded-lg text-center">
-                  <p className="text-sm text-muted-foreground">
-                    Certificato attivo — Scadenza: 15/12/2027
-                  </p>
-                  <Button variant="outline" size="sm" className="mt-2">
-                    Aggiorna Certificato
-                  </Button>
+              <p className="text-sm font-semibold">Provider Intermediario SDI</p>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <Label>Provider</Label>
+                  <Select value={sdiProvider} onValueChange={(v) => v && setSdiProvider(v)}>
+                    <SelectTrigger className="mt-1 w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="simulato">Simulato (Demo/Test)</SelectItem>
+                      <SelectItem value="fattura24">Fattura24</SelectItem>
+                      <SelectItem value="fattureincloud">FattureInCloud</SelectItem>
+                      <SelectItem value="manuale">Manuale (XML scaricabile)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Regime Fiscale</Label>
+                  <Select value={sdiRegime} onValueChange={(v) => v && setSdiRegime(v)}>
+                    <SelectTrigger className="mt-1 w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="RF01">RF01 - Ordinario</SelectItem>
+                      <SelectItem value="RF02">RF02 - Contribuenti minimi</SelectItem>
+                      <SelectItem value="RF04">RF04 - Agricoltura</SelectItem>
+                      <SelectItem value="RF19">RF19 - Forfettario</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {(sdiProvider === 'fattura24' || sdiProvider === 'fattureincloud') && (
+                  <>
+                    <div>
+                      <Label>API Key</Label>
+                      <Input type="password" placeholder="Inserisci API Key" value={sdiApiKey} onChange={(e) => setSdiApiKey(e.target.value)} className="mt-1" />
+                    </div>
+                    <div>
+                      <Label>API Secret</Label>
+                      <Input type="password" placeholder="Inserisci API Secret" value={sdiApiSecret} onChange={(e) => setSdiApiSecret(e.target.value)} className="mt-1" />
+                    </div>
+                  </>
+                )}
+                <div>
+                  <Label>Metodo Pagamento Default</Label>
+                  <Select value={sdiPagamento} onValueChange={(v) => v && setSdiPagamento(v)}>
+                    <SelectTrigger className="mt-1 w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="MP05">MP05 - Bonifico Bancario</SelectItem>
+                      <SelectItem value="MP01">MP01 - Contanti</SelectItem>
+                      <SelectItem value="MP08">MP08 - Carta di Credito</SelectItem>
+                      <SelectItem value="MP12">MP12 - Ri.Ba.</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>IBAN Beneficiario</Label>
+                  <Input placeholder="IT60X0542811101000000123456" value={sdiIban} onChange={(e) => setSdiIban(e.target.value)} className="mt-1" />
                 </div>
               </div>
-              <Button className="bg-[#1a2332] hover:bg-[#1a2332]/90">
-                <Save className="mr-2 h-4 w-4" />
-                Salva Configurazione
-              </Button>
+              {sdiProvider === 'simulato' && (
+                <div className="p-3 bg-blue-50 rounded-lg text-sm text-blue-700">
+                  Il provider simulato replica il comportamento del SDI per test e demo. Gli stati delle fatture progrediranno automaticamente (inviata → consegnata → accettata).
+                </div>
+              )}
+              <div className="flex items-center gap-3">
+                <Button className="bg-[#1a2332] hover:bg-[#1a2332]/90" onClick={handleSaveSdiConfig} disabled={sdiSaving}>
+                  {sdiSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                  Salva Configurazione
+                </Button>
+                {sdiSaved && (
+                  <span className="text-sm text-green-600 flex items-center gap-1">
+                    <CheckCircle className="h-4 w-4" /> Salvato
+                  </span>
+                )}
+              </div>
             </CardContent>
           </Card>
         </TabsContent>

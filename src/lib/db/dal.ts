@@ -527,6 +527,58 @@ export async function deleteFattura(id: string) {
   await db.delete(schema.fatture).where(eq(schema.fatture.id, id));
 }
 
+/** Aggiorna solo i campi SDI di una fattura */
+export async function updateFatturaSDI(id: string, data: {
+  statoSDI?: string;
+  notificheSDI?: { tipo: string; data: string; descrizione: string }[];
+  sdiIdentificativo?: string | null;
+  sdiProgressivoInvio?: string | null;
+  sdiDataInvio?: string | null;
+  sdiErroreDettaglio?: string | null;
+  xmlRiferimento?: string | null;
+}) {
+  await db.update(schema.fatture).set(data as Partial<typeof schema.fatture.$inferInsert>).where(eq(schema.fatture.id, id));
+}
+
+/** Fatture in attesa di aggiornamento stato SDI */
+export async function getFattureInAttesaSDI() {
+  const rows = await db.select().from(schema.fatture)
+    .where(inArray(schema.fatture.statoSDI, ['inviata', 'in_attesa', 'consegnata']));
+  return rows.map(r => ({
+    ...r,
+    subtotale: numericToNumber(r.subtotale),
+    iva: numericToNumber(r.iva),
+    totale: numericToNumber(r.totale),
+  }));
+}
+
+// ==================== CONFIGURAZIONI SDI ====================
+
+export async function getConfigurazioneSdi(tenantId: string) {
+  const rows = await db.select().from(schema.configurazioniSdi)
+    .where(eq(schema.configurazioniSdi.tenantId, tenantId));
+  return rows.length > 0 ? rows[0] : null;
+}
+
+export async function createConfigurazioneSdi(data: typeof schema.configurazioniSdi.$inferInsert) {
+  await db.insert(schema.configurazioniSdi).values(data);
+}
+
+export async function updateConfigurazioneSdi(id: string, data: Partial<typeof schema.configurazioniSdi.$inferInsert>) {
+  await db.update(schema.configurazioniSdi).set(data).where(eq(schema.configurazioniSdi.id, id));
+}
+
+// ==================== LOG SDI ====================
+
+export async function getLogSdi(fatturaId: string) {
+  return db.select().from(schema.logSdi)
+    .where(eq(schema.logSdi.fatturaId, fatturaId));
+}
+
+export async function createLogSdi(data: typeof schema.logSdi.$inferInsert) {
+  await db.insert(schema.logSdi).values(data);
+}
+
 // ==================== PREVENTIVI CRUD ====================
 
 export async function getNextPreventivoNumber(tenantId: string): Promise<string> {

@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { fetchFatture, fetchClienti, createFattura, updateFattura, deleteFattura } from '@/lib/actions/data';
+import { inviaFatturaSDI, controllaStatoSDI, reinviaFatturaSDI } from '@/lib/actions/sdi';
 import { useServerData } from '@/lib/hooks/use-server-data';
 import { useAuth } from '@/lib/auth-context';
 import {
@@ -27,7 +28,7 @@ import {
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Search, Plus, Eye, FileText, Send, CheckCircle, XCircle, Clock, Save, MoreHorizontal, Pencil, Trash2, Copy, Download, Printer } from 'lucide-react';
+import { Search, Plus, Eye, FileText, Send, CheckCircle, XCircle, Clock, Save, MoreHorizontal, Pencil, Trash2, Copy, Download, Printer, AlertCircle, RefreshCw, Loader2 } from 'lucide-react';
 import { Pagination } from '@/components/ui/pagination';
 import type { Fattura } from '@/lib/types';
 
@@ -59,6 +60,9 @@ export default function FatturePage() {
   const [formDescrizione, setFormDescrizione] = useState('');
   const [formImporto, setFormImporto] = useState('');
   const [formIva, setFormIva] = useState('22');
+  const [sdiLoading, setSdiLoading] = useState<string | null>(null); // ID fattura in corso
+  const [sdiErrors, setSdiErrors] = useState<{ campo: string; messaggio: string }[]>([]);
+  const [showSdiErrors, setShowSdiErrors] = useState(false);
 
   const resetForm = () => {
     setFormClienteId('');
@@ -84,7 +88,9 @@ export default function FatturePage() {
     const totale = subtotale + ivaAmount;
 
     setSubmitting(true);
+    setSdiErrors([]);
     try {
+      // Sempre crea come bozza prima
       const result = await createFattura({
         tenantId,
         tipo: formTipo,
@@ -93,7 +99,7 @@ export default function FatturePage() {
         data: formData || new Date().toISOString().split('T')[0],
         dataScadenza: formScadenza || new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
         stato: 'non_pagata',
-        statoSDI: asBozza ? 'bozza' : 'inviata',
+        statoSDI: 'bozza',
         righe: [{
           prodottoId: '',
           nome: formDescrizione || 'Vendita prodotti',
@@ -106,13 +112,34 @@ export default function FatturePage() {
         iva: String(ivaAmount),
         totale: String(totale),
       });
-      if (result.ok) {
-        setCreateDialogOpen(false);
-        resetForm();
-        refresh();
-      } else {
+
+      if (!result.ok) {
         alert(result.error || 'Errore nella creazione della fattura');
+        return;
       }
+
+      // Se non è bozza, invia al SDI
+      if (!asBozza) {
+        // Refresh per ottenere l'ID della fattura appena creata
+        const updatedFatture = await fetchFatture(tenantId);
+        const nuovaFattura = updatedFatture.find(f => f.clienteId === formClienteId && f.statoSDI === 'bozza');
+        if (nuovaFattura) {
+          const sdiResult = await inviaFatturaSDI(nuovaFattura.id, tenantId);
+          if (!sdiResult.ok) {
+            const sdiErr = sdiResult as { ok: false; error: string; errori?: { campo: string; messaggio: string }[] };
+            if (sdiErr.errori && sdiErr.errori.length > 0) {
+              setSdiErrors(sdiErr.errori);
+              setShowSdiErrors(true);
+            } else {
+              alert(`Fattura creata come bozza. Errore invio SDI: ${sdiResult.error}`);
+            }
+          }
+        }
+      }
+
+      setCreateDialogOpen(false);
+      resetForm();
+      refresh();
     } finally {
       setSubmitting(false);
     }
@@ -178,18 +205,63 @@ export default function FatturePage() {
     }
   };
 
-  const handleStatusChange = async (id: string, statoSDI: string) => {
-    if (submitting) return;
-    setSubmitting(true);
+  const handleInviaSDI = async (id: string) => {
+    if (sdiLoading) return;
+    setSdiLoading(id);
+    setSdiErrors([]);
     try {
-      const result = await updateFattura(id, { statoSDI });
+      const result = await inviaFatturaSDI(id, tenantId);
       if (result.ok) {
         refresh();
       } else {
-        alert(result.error || 'Errore nell\'aggiornamento');
+        const sdiErr = result as { ok: false; error: string; errori?: { campo: string; messaggio: string }[] };
+        if (sdiErr.errori && sdiErr.errori.length > 0) {
+          setSdiErrors(sdiErr.errori);
+          setShowSdiErrors(true);
+        } else {
+          alert(result.error || 'Errore nell\'invio al SDI');
+        }
       }
     } finally {
-      setSubmitting(false);
+      setSdiLoading(null);
+    }
+  };
+
+  const handleControllaStato = async (id: string) => {
+    if (sdiLoading) return;
+    setSdiLoading(id);
+    try {
+      const result = await controllaStatoSDI(id);
+      if (result.ok) {
+        refresh();
+      } else {
+        alert(result.error || 'Errore nel controllo stato');
+      }
+    } finally {
+      setSdiLoading(null);
+    }
+  };
+
+  const handleReinviaSDI = async (id: string) => {
+    if (sdiLoading) return;
+    if (!confirm('Reinviare la fattura al SDI?')) return;
+    setSdiLoading(id);
+    setSdiErrors([]);
+    try {
+      const result = await reinviaFatturaSDI(id, tenantId);
+      if (result.ok) {
+        refresh();
+      } else {
+        const sdiErr = result as { ok: false; error: string; errori?: { campo: string; messaggio: string }[] };
+        if (sdiErr.errori && sdiErr.errori.length > 0) {
+          setSdiErrors(sdiErr.errori);
+          setShowSdiErrors(true);
+        } else {
+          alert(result.error || 'Errore nel reinvio al SDI');
+        }
+      }
+    } finally {
+      setSdiLoading(null);
     }
   };
 
@@ -547,6 +619,24 @@ export default function FatturePage() {
                                 <p className="font-medium font-mono text-xs">{fattura.xmlRiferimento}</p>
                               </div>
                             )}
+                            {(fattura as Fattura).sdiIdentificativo && (
+                              <div>
+                                <p className="text-muted-foreground">ID SDI</p>
+                                <p className="font-medium font-mono text-xs">{(fattura as Fattura).sdiIdentificativo}</p>
+                              </div>
+                            )}
+                            {(fattura as Fattura).sdiDataInvio && (
+                              <div>
+                                <p className="text-muted-foreground">Data Invio SDI</p>
+                                <p className="font-medium">{formatDate((fattura as Fattura).sdiDataInvio!)}</p>
+                              </div>
+                            )}
+                            {(fattura as Fattura).sdiErroreDettaglio && (
+                              <div className="sm:col-span-2">
+                                <p className="text-muted-foreground">Errore SDI</p>
+                                <p className="font-medium text-red-600 text-xs">{(fattura as Fattura).sdiErroreDettaglio}</p>
+                              </div>
+                            )}
                           </div>
 
                           {/* Timeline SDI */}
@@ -593,9 +683,25 @@ export default function FatturePage() {
                         <MoreHorizontal className="h-4 w-4" />
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem disabled={submitting} onClick={() => handleStatusChange(fattura.id, 'inviata')}>
-                          <Pencil className="mr-2 h-4 w-4" />Modifica
-                        </DropdownMenuItem>
+                        {fattura.statoSDI === 'bozza' && (
+                          <DropdownMenuItem disabled={!!sdiLoading} onClick={() => handleInviaSDI(fattura.id)}>
+                            {sdiLoading === fattura.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+                            Invia a SDI
+                          </DropdownMenuItem>
+                        )}
+                        {(fattura.statoSDI === 'scartata' || fattura.statoSDI === 'rifiutata') && (
+                          <DropdownMenuItem disabled={!!sdiLoading} onClick={() => handleReinviaSDI(fattura.id)}>
+                            {sdiLoading === fattura.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+                            Reinvia a SDI
+                          </DropdownMenuItem>
+                        )}
+                        {fattura.statoSDI !== 'bozza' && (
+                          <DropdownMenuItem disabled={!!sdiLoading} onClick={() => handleControllaStato(fattura.id)}>
+                            {sdiLoading === fattura.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+                            Controlla Stato SDI
+                          </DropdownMenuItem>
+                        )}
+                        <DropdownMenuSeparator />
                         <DropdownMenuItem disabled={submitting} onClick={() => handleDuplicate(fattura as Fattura)}>
                           <Copy className="mr-2 h-4 w-4" />Duplica
                         </DropdownMenuItem>
@@ -617,6 +723,36 @@ export default function FatturePage() {
           <Pagination currentPage={currentPage} totalItems={filtered.length} pageSize={pageSize} onPageChange={setCurrentPage} onPageSizeChange={setPageSize} />
         </CardContent>
       </Card>
+      {/* Dialog errori validazione SDI */}
+      <Dialog open={showSdiErrors} onOpenChange={setShowSdiErrors}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <AlertCircle className="h-5 w-5" />
+              Errori Validazione SDI
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2">
+            <p className="text-sm text-muted-foreground">
+              La fattura non può essere inviata al SDI. Correggi i seguenti errori:
+            </p>
+            <div className="max-h-60 overflow-y-auto space-y-2">
+              {sdiErrors.map((err, i) => (
+                <div key={i} className="flex items-start gap-2 text-sm p-2 bg-red-50 rounded-md">
+                  <XCircle className="h-4 w-4 text-red-500 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <p className="font-medium">{err.messaggio}</p>
+                    <p className="text-xs text-muted-foreground">{err.campo}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+          <Button variant="outline" onClick={() => setShowSdiErrors(false)} className="mt-2">
+            Chiudi
+          </Button>
+        </DialogContent>
+      </Dialog>
     </PageContainer>
   );
 }

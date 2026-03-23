@@ -43,10 +43,11 @@ export interface DatiFattura {
   };
 
   // Dati fattura
-  tipoDocumento: string; // "TD01" = fattura, "TD04" = nota di credito
+  tipoDocumento: string; // "TD01" = fattura, "TD04" = nota di credito, "TD06" = parcella
   numero: string;
   data: string; // YYYY-MM-DD
   divisa: string; // "EUR"
+  causale?: string;
 
   // Righe
   righe: Array<{
@@ -56,6 +57,8 @@ export interface DatiFattura {
     prezzoUnitario: number;
     aliquotaIVA: number; // es. 22.00
     prezzoTotale: number;
+    natura?: string; // N1-N7, obbligatorio se aliquotaIVA = 0
+    riferimentoNormativo?: string; // es. "Art.15 DPR 633/72"
   }>;
 
   // Riepilogo IVA
@@ -63,6 +66,8 @@ export interface DatiFattura {
     aliquotaIVA: number;
     imponibile: number;
     imposta: number;
+    natura?: string; // N1-N7, obbligatorio se aliquotaIVA = 0
+    riferimentoNormativo?: string;
   }>;
 
   // Pagamento
@@ -202,6 +207,9 @@ export function generateFatturaPA(dati: DatiFattura): string {
   lines.push(`        <Data>${escapeXml(dati.data)}</Data>`);
   lines.push(`        <Numero>${escapeXml(dati.numero)}</Numero>`);
   lines.push(`        <ImportoTotaleDocumento>${fmt2(dati.importoPagamento)}</ImportoTotaleDocumento>`);
+  if (dati.causale) {
+    lines.push(`        <Causale>${escapeXml(dati.causale)}</Causale>`);
+  }
   lines.push('      </DatiGeneraliDocumento>');
   lines.push('    </DatiGenerali>');
 
@@ -217,6 +225,9 @@ export function generateFatturaPA(dati: DatiFattura): string {
     lines.push(`        <PrezzoUnitario>${fmt8(riga.prezzoUnitario)}</PrezzoUnitario>`);
     lines.push(`        <PrezzoTotale>${fmt2(riga.prezzoTotale)}</PrezzoTotale>`);
     lines.push(`        <AliquotaIVA>${fmt2(riga.aliquotaIVA)}</AliquotaIVA>`);
+    if (riga.aliquotaIVA === 0 && riga.natura) {
+      lines.push(`        <Natura>${escapeXml(riga.natura)}</Natura>`);
+    }
     lines.push('      </DettaglioLinee>');
   }
 
@@ -224,9 +235,15 @@ export function generateFatturaPA(dati: DatiFattura): string {
   for (const riepilogo of dati.riepilogoIVA) {
     lines.push('      <DatiRiepilogo>');
     lines.push(`        <AliquotaIVA>${fmt2(riepilogo.aliquotaIVA)}</AliquotaIVA>`);
+    if (riepilogo.aliquotaIVA === 0 && riepilogo.natura) {
+      lines.push(`        <Natura>${escapeXml(riepilogo.natura)}</Natura>`);
+    }
     lines.push(`        <ImponibileImporto>${fmt2(riepilogo.imponibile)}</ImponibileImporto>`);
     lines.push(`        <Imposta>${fmt2(riepilogo.imposta)}</Imposta>`);
     lines.push('        <EsigibilitaIVA>I</EsigibilitaIVA>');
+    if (riepilogo.riferimentoNormativo) {
+      lines.push(`        <RiferimentoNormativo>${escapeXml(riepilogo.riferimentoNormativo)}</RiferimentoNormativo>`);
+    }
     lines.push('      </DatiRiepilogo>');
   }
 
@@ -299,27 +316,43 @@ export function mapFatturaToSDI(params: {
     codiceDestinatario?: string | null;
   };
   progressivoInvio: string;
+  tipoDocumento?: string; // default TD01
+  regimeFiscale?: string; // default RF01
+  modalitaPagamento?: string; // default MP05
+  ibanBeneficiario?: string;
 }): DatiFattura {
   const { fattura, emittente, cliente, progressivoInvio } = params;
 
   // Mappa le righe con numerazione progressiva
-  const righe = fattura.righe.map((riga, index) => ({
-    numero: index + 1,
-    descrizione: riga.nome,
-    quantita: riga.quantita,
-    prezzoUnitario: riga.prezzoUnitario,
-    aliquotaIVA: riga.iva,
-    prezzoTotale: riga.totale,
-  }));
+  const righe = fattura.righe.map((riga, index) => {
+    const mapped: DatiFattura['righe'][0] = {
+      numero: index + 1,
+      descrizione: riga.nome,
+      quantita: riga.quantita,
+      prezzoUnitario: riga.prezzoUnitario,
+      aliquotaIVA: riga.iva,
+      prezzoTotale: riga.totale,
+    };
+    // Se IVA = 0, indica natura N4 (esente) come default
+    if (riga.iva === 0) {
+      mapped.natura = 'N4';
+      mapped.riferimentoNormativo = 'Art.15 DPR 633/72';
+    }
+    return mapped;
+  });
 
   // Calcola riepilogo IVA raggruppato per aliquota
-  const ivaMap = new Map<number, { imponibile: number; imposta: number }>();
+  const ivaMap = new Map<number, { imponibile: number; imposta: number; natura?: string; riferimentoNormativo?: string }>();
   for (const riga of fattura.righe) {
     const existing = ivaMap.get(riga.iva) || { imponibile: 0, imposta: 0 };
     const imponibileRiga = riga.prezzoUnitario * riga.quantita;
     const impostaRiga = riga.totale - imponibileRiga;
     existing.imponibile += imponibileRiga;
     existing.imposta += impostaRiga;
+    if (riga.iva === 0) {
+      existing.natura = 'N4';
+      existing.riferimentoNormativo = 'Art.15 DPR 633/72';
+    }
     ivaMap.set(riga.iva, existing);
   }
 
@@ -327,6 +360,8 @@ export function mapFatturaToSDI(params: {
     aliquotaIVA: aliquota,
     imponibile: Math.round(valori.imponibile * 100) / 100,
     imposta: Math.round(valori.imposta * 100) / 100,
+    natura: valori.natura,
+    riferimentoNormativo: valori.riferimentoNormativo,
   }));
 
   return {
@@ -341,7 +376,7 @@ export function mapFatturaToSDI(params: {
       comune: emittente.citta,
       provincia: emittente.provincia,
       nazione: 'IT',
-      regimeFiscale: 'RF01', // Regime ordinario
+      regimeFiscale: params.regimeFiscale || 'RF01', // Regime ordinario
       telefono: emittente.telefono || undefined,
       email: emittente.email || undefined,
       pec: emittente.pec || undefined,
@@ -360,7 +395,7 @@ export function mapFatturaToSDI(params: {
       pec: cliente.pec || undefined,
     },
 
-    tipoDocumento: 'TD01', // Fattura
+    tipoDocumento: params.tipoDocumento || 'TD01', // Fattura
     numero: fattura.numero,
     data: fattura.data,
     divisa: 'EUR',
@@ -370,7 +405,8 @@ export function mapFatturaToSDI(params: {
 
     importoPagamento: fattura.totale,
     condizionePagamento: 'TP02', // Pagamento completo
-    modalitaPagamento: 'MP05', // Bonifico bancario (default)
+    modalitaPagamento: params.modalitaPagamento || 'MP05', // Bonifico bancario (default)
     dataScadenzaPagamento: fattura.dataScadenza,
+    ibanBeneficiario: params.ibanBeneficiario,
   };
 }

@@ -41,6 +41,9 @@ export const rinnovoContrattoEnum = pgEnum('rinnovo_contratto', ['automatico', '
 export const categoriaSpesaEnum = pgEnum('categoria_spesa', ['trasporti', 'pasti', 'alloggio', 'materiali', 'servizi', 'utenze', 'altro']);
 export const statoSpesaEnum = pgEnum('stato_spesa', ['da_approvare', 'approvata', 'rifiutata', 'rimborsata']);
 export const statoNotaCreditoEnum = pgEnum('stato_nota_credito', ['emessa', 'inviata_sdi', 'accettata']);
+export const sdiProviderEnum = pgEnum('sdi_provider', ['simulato', 'fattura24', 'fattureincloud', 'manuale']);
+export const azioneSDIEnum = pgEnum('azione_sdi', ['invio', 'polling', 'notifica', 'errore', 'reinvio']);
+export const statoLogSDIEnum = pgEnum('stato_log_sdi', ['successo', 'errore']);
 export const metodoPagamentoPiattaformaEnum = pgEnum('metodo_pagamento_piattaforma', ['nexi', 'paypal', 'bonifico']);
 export const statoAbbonamentoEnum = pgEnum('stato_abbonamento', ['attivo', 'scaduto', 'sospeso', 'cancellato', 'trial', 'in_attesa_pagamento']);
 export const statoTransazioneEnum = pgEnum('stato_transazione', ['pending', 'completata', 'fallita', 'rimborsata', 'in_attesa_conferma']);
@@ -185,6 +188,11 @@ export const fatture = pgTable('fatture', {
   iva: numeric('iva', { precision: 10, scale: 2 }).notNull(),
   totale: numeric('totale', { precision: 10, scale: 2 }).notNull(),
   xmlRiferimento: text('xml_riferimento'),
+  // Campi SDI per tracciamento invio
+  sdiIdentificativo: text('sdi_identificativo'),
+  sdiProgressivoInvio: text('sdi_progressivo_invio'),
+  sdiDataInvio: text('sdi_data_invio'),
+  sdiErroreDettaglio: text('sdi_errore_dettaglio'),
 });
 
 export const dipendenti = pgTable('dipendenti', {
@@ -482,4 +490,32 @@ export const transazioniPiattaforma = pgTable('transazioni_piattaforma', {
   data: text('data').notNull(),
   dataConferma: text('data_conferma'),
   dettagliRisposta: jsonb('dettagli_risposta').$type<Record<string, unknown>>(),
+});
+
+// ==================== CONFIGURAZIONI SDI ====================
+
+export const configurazioniSdi = pgTable('configurazioni_sdi', {
+  id: text('id').primaryKey(),
+  tenantId: text('tenant_id').notNull(),
+  provider: sdiProviderEnum('provider').notNull(),
+  apiKey: text('api_key'),
+  apiSecret: text('api_secret'),
+  attivo: boolean('attivo').notNull().default(true),
+  regimeFiscale: text('regime_fiscale').notNull().default('RF01'),
+  modalitaPagamentoDefault: text('modalita_pagamento_default').notNull().default('MP05'),
+  ibanBeneficiario: text('iban_beneficiario'),
+  dataCreazione: text('data_creazione').notNull(),
+  dataAggiornamento: text('data_aggiornamento').notNull(),
+});
+
+// ==================== LOG SDI ====================
+
+export const logSdi = pgTable('log_sdi', {
+  id: text('id').primaryKey(),
+  fatturaId: text('fattura_id').notNull(),
+  tenantId: text('tenant_id').notNull(),
+  azione: azioneSDIEnum('azione').notNull(),
+  stato: statoLogSDIEnum('stato').notNull(),
+  dettagli: jsonb('dettagli').$type<Record<string, unknown>>().notNull().default({}),
+  data: text('data').notNull(),
 });

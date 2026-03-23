@@ -25,7 +25,7 @@ export async function GET(
 
     // Lazy imports per compatibilita' Vercel build
     const dal = await import('@/lib/db/dal');
-    const { generateFatturaPA, mapFatturaToSDI } = await import('@/lib/sdi');
+    const { generateFatturaPA, mapFatturaToSDI } = await import('@/lib/sdi/xml');
 
     // Carica fattura
     const fattura = await dal.getFatturaById(id);

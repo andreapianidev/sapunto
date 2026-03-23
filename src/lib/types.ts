@@ -129,6 +129,11 @@ export interface Fattura {
   iva: number;
   totale: number;
   xmlRiferimento?: string | null;
+  // Campi SDI per tracciamento invio
+  sdiIdentificativo?: string | null;
+  sdiProgressivoInvio?: string | null;
+  sdiDataInvio?: string | null;
+  sdiErroreDettaglio?: string | null;
 }
 
 export interface Dipendente {
