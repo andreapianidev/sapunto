@@ -20,7 +20,7 @@ import {
 import { fetchAppuntamenti, fetchClienti, createAppuntamento, updateAppuntamento, deleteAppuntamento } from '@/lib/actions/data';
 import { useServerData } from '@/lib/hooks/use-server-data';
 import { useAuth } from '@/lib/auth-context';
-import { formatDate } from '@/lib/utils';
+import { formatDate, exportCSV } from '@/lib/utils';
 import { Plus, Calendar, Clock, MapPin, User, MoreHorizontal, Pencil, Trash2, Download, ChevronLeft, ChevronRight } from 'lucide-react';
 
 const giorniSettimana = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom'];
@@ -304,7 +304,18 @@ export default function AppuntamentiPage() {
   };
 
   const handleBulkExport = () => {
-    alert(`Demo: esportazione di ${selectedIds.size} appuntamenti selezionati!`);
+    exportCSV(
+      appuntamenti.filter((a) => selectedIds.has(a.id)),
+      [
+        { key: 'data', label: 'Data' },
+        { key: 'oraInizio', label: 'Ora' },
+        { key: 'clienteNome', label: 'Cliente' },
+        { key: 'titolo', label: 'Tipo' },
+        { key: 'stato', label: 'Stato' },
+        { key: 'note', label: 'Note' },
+      ],
+      'appuntamenti-selezionati'
+    );
   };
 
   if (loading) return <div className="p-8 text-center">Caricamento...</div>;
@@ -315,7 +326,14 @@ export default function AppuntamentiPage() {
       description="Calendario appuntamenti e visite"
       actions={
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => alert('Demo: esporta appuntamenti!')}>
+          <Button variant="outline" size="sm" onClick={() => exportCSV(appuntamentiFiltrati, [
+            { key: 'data', label: 'Data' },
+            { key: 'oraInizio', label: 'Ora' },
+            { key: 'clienteNome', label: 'Cliente' },
+            { key: 'titolo', label: 'Tipo' },
+            { key: 'stato', label: 'Stato' },
+            { key: 'note', label: 'Note' },
+          ], 'appuntamenti')}>
             <Download className="mr-2 h-4 w-4" />
             Esporta
           </Button>

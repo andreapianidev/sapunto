@@ -678,9 +678,9 @@ export default function PayrollPage() {
                                   </div>
                                 </DialogContent>
                               </Dialog>
-                              <DropdownMenuItem onClick={() => alert(`Demo: Modifica dipendente "${dip.nome} ${dip.cognome}"`)}>
+                              <DropdownMenuItem onClick={() => { setSelectedDipendente(dip); }}>
                                 <Pencil className="h-4 w-4 mr-2" />
-                                Modifica
+                                Dettaglio
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
                               <DropdownMenuItem

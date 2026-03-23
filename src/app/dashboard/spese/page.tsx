@@ -23,7 +23,7 @@ import { Pagination } from '@/components/ui/pagination';
 import { fetchSpese, createSpesa, updateSpesa, deleteSpesa } from '@/lib/actions/data';
 import { useServerData } from '@/lib/hooks/use-server-data';
 import { useAuth } from '@/lib/auth-context';
-import { formatCurrency, formatDate } from '@/lib/utils';
+import { formatCurrency, formatDate, exportCSV } from '@/lib/utils';
 import { Search, Plus, Receipt, CheckCircle, Clock, XCircle, Save, MoreHorizontal, Pencil, Trash2, Copy, Download, Eye } from 'lucide-react';
 
 const statoBadge: Record<string, string> = {
@@ -226,7 +226,14 @@ export default function SpesePage() {
       description="Gestione note spese aziendali"
       actions={
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => alert('Demo: export CSV spese!')}>
+          <Button variant="outline" size="sm" onClick={() => exportCSV(filtered, [
+            { key: 'data', label: 'Data' },
+            { key: 'descrizione', label: 'Descrizione' },
+            { key: 'categoria', label: 'Categoria' },
+            { key: 'importo', label: 'Importo' },
+            { key: 'stato', label: 'Stato' },
+            { key: 'dipendenteNome', label: 'Fornitore' },
+          ], 'spese')}>
             <Download className="mr-2 h-4 w-4" />
             Esporta CSV
           </Button>
@@ -287,7 +294,18 @@ export default function SpesePage() {
           <CardContent className="p-3 flex items-center justify-between">
             <p className="text-sm font-medium">{selectedIds.size} element{selectedIds.size > 1 ? 'i' : 'o'} selezionat{selectedIds.size > 1 ? 'i' : 'o'}</p>
             <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={() => alert('Demo: esportazione selezionati!')}>
+              <Button variant="outline" size="sm" onClick={() => exportCSV(
+                spese.filter((s) => selectedIds.has(s.id)),
+                [
+                  { key: 'data', label: 'Data' },
+                  { key: 'descrizione', label: 'Descrizione' },
+                  { key: 'categoria', label: 'Categoria' },
+                  { key: 'importo', label: 'Importo' },
+                  { key: 'stato', label: 'Stato' },
+                  { key: 'dipendenteNome', label: 'Fornitore' },
+                ],
+                'spese-selezionate'
+              )}>
                 <Download className="mr-2 h-4 w-4" />Esporta selezionati
               </Button>
               <Button variant="destructive" size="sm" onClick={handleBulkDelete} disabled={submitting}>

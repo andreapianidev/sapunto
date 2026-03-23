@@ -136,3 +136,45 @@ export function getMeseLabel(mese: number): string {
   ];
   return mesi[mese - 1] || '';
 }
+
+// Export CSV: genera e scarica un file CSV da un array di oggetti
+export function exportCSV<T extends Record<string, unknown>>(
+  data: T[],
+  columns: { key: string; label: string }[],
+  filename: string
+) {
+  if (data.length === 0) return;
+  const BOM = '\uFEFF'; // UTF-8 BOM per Excel italiano
+  const sep = ';'; // separatore italiano per Excel
+  const header = columns.map(c => `"${c.label}"`).join(sep);
+  const rows = data.map(row =>
+    columns.map(c => {
+      const val = row[c.key];
+      if (val === null || val === undefined) return '""';
+      const str = String(val).replace(/"/g, '""');
+      return `"${str}"`;
+    }).join(sep)
+  );
+  const csv = BOM + header + '\n' + rows.join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${filename}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// Import CSV: parsa un file CSV e restituisce un array di oggetti
+export function parseCSV(text: string): Record<string, string>[] {
+  const lines = text.trim().replace(/^\uFEFF/, '').split('\n');
+  if (lines.length < 2) return [];
+  const sep = lines[0].includes(';') ? ';' : ',';
+  const headers = lines[0].split(sep).map(h => h.replace(/^"|"$/g, '').trim());
+  return lines.slice(1).filter(l => l.trim()).map(line => {
+    const values = line.split(sep).map(v => v.replace(/^"|"$/g, '').trim());
+    const obj: Record<string, string> = {};
+    headers.forEach((h, i) => { obj[h] = values[i] || ''; });
+    return obj;
+  });
+}

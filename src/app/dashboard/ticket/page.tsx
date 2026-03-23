@@ -21,7 +21,7 @@ import { Pagination } from '@/components/ui/pagination';
 import { fetchTickets, createTicket, updateTicket, deleteTicket } from '@/lib/actions/data';
 import { useServerData } from '@/lib/hooks/use-server-data';
 import { useAuth } from '@/lib/auth-context';
-import { formatDate, formatDateTime } from '@/lib/utils';
+import { formatDate, formatDateTime, exportCSV } from '@/lib/utils';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Search, Plus, Eye, LifeBuoy, AlertCircle, CheckCircle, Clock, MessageSquare, MoreHorizontal, Pencil, Trash2, Copy, Download, X } from 'lucide-react';
 import type { Ticket } from '@/lib/types';
@@ -212,7 +212,14 @@ export default function TicketPage() {
       description="Gestione richieste di assistenza"
       actions={
         <div className="flex items-center gap-2">
-        <Button variant="outline" size="sm" onClick={() => alert('Demo: azione eseguita!')}><Download className="mr-2 h-4 w-4" />Export CSV</Button>
+        <Button variant="outline" size="sm" onClick={() => exportCSV(filtered, [
+          { key: 'numero', label: 'Numero' },
+          { key: 'oggetto', label: 'Oggetto' },
+          { key: 'clienteNome', label: 'Cliente' },
+          { key: 'priorita', label: 'Priorita' },
+          { key: 'stato', label: 'Stato' },
+          { key: 'dataApertura', label: 'Data Apertura' },
+        ], 'ticket')}><Download className="mr-2 h-4 w-4" />Export CSV</Button>
         <Dialog open={newTicketOpen} onOpenChange={(open) => { setNewTicketOpen(open); if (!open) resetNewTicketForm(); }}>
           <DialogTrigger className="inline-flex items-center justify-center rounded-md text-sm font-medium h-8 px-3 bg-[#1a2332] text-white hover:bg-[#1a2332]/90">
             <Plus className="mr-2 h-4 w-4" />
@@ -339,7 +346,18 @@ export default function TicketPage() {
                   <Trash2 className="mr-2 h-4 w-4" />
                   {submitting ? 'Operazione...' : 'Elimina selezionati'}
                 </Button>
-                <Button size="sm" variant="outline" onClick={() => alert('Demo: ticket esportati!')}>
+                <Button size="sm" variant="outline" onClick={() => exportCSV(
+                  tickets.filter((t) => selectedIds.has(t.id)),
+                  [
+                    { key: 'numero', label: 'Numero' },
+                    { key: 'oggetto', label: 'Oggetto' },
+                    { key: 'clienteNome', label: 'Cliente' },
+                    { key: 'priorita', label: 'Priorita' },
+                    { key: 'stato', label: 'Stato' },
+                    { key: 'dataApertura', label: 'Data Apertura' },
+                  ],
+                  'ticket-selezionati'
+                )}>
                   <Download className="mr-2 h-4 w-4" />
                   Esporta selezionati
                 </Button>
@@ -391,7 +409,7 @@ export default function TicketPage() {
                     <TableCell><Badge variant="secondary" className={`text-xs ${prioritaBadge[t.priorita]}`}>{t.priorita}</Badge></TableCell>
                     <TableCell><Badge variant="secondary" className={`text-xs ${statoBadge[t.stato]}`}>{t.stato.replace('_', ' ')}</Badge></TableCell>
                     <TableCell className="text-center hidden md:table-cell text-sm">{t.risposte.length}</TableCell>
-                    <TableCell><DropdownMenu><DropdownMenuTrigger className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground h-8 w-8 p-0" onClick={(e) => e.stopPropagation()}><MoreHorizontal className="h-4 w-4" /></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem onClick={(e) => { e.stopPropagation(); alert('Demo: azione eseguita!'); }}><Pencil className="mr-2 h-4 w-4" />Modifica</DropdownMenuItem><DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleCloseTicket(t.id); }}><CheckCircle className="mr-2 h-4 w-4" />Chiudi Ticket</DropdownMenuItem><DropdownMenuSeparator /><DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleDeleteTicket(t.id); }} className="text-red-600"><Trash2 className="mr-2 h-4 w-4" />Elimina</DropdownMenuItem></DropdownMenuContent></DropdownMenu></TableCell>
+                    <TableCell><DropdownMenu><DropdownMenuTrigger className="inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground h-8 w-8 p-0" onClick={(e) => e.stopPropagation()}><MoreHorizontal className="h-4 w-4" /></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem onClick={(e) => { e.stopPropagation(); setSelectedTicket(t); }}><Pencil className="mr-2 h-4 w-4" />Visualizza</DropdownMenuItem><DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleCloseTicket(t.id); }}><CheckCircle className="mr-2 h-4 w-4" />Chiudi Ticket</DropdownMenuItem><DropdownMenuSeparator /><DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleDeleteTicket(t.id); }} className="text-red-600"><Trash2 className="mr-2 h-4 w-4" />Elimina</DropdownMenuItem></DropdownMenuContent></DropdownMenu></TableCell>
                   </TableRow>
                 ))}
               </TableBody>

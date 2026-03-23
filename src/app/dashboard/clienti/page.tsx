@@ -24,7 +24,7 @@ import { Pagination } from '@/components/ui/pagination';
 import { fetchClienti, fetchOrdini, fetchFatture, createCliente, updateCliente, deleteCliente } from '@/lib/actions/data';
 import { useServerData } from '@/lib/hooks/use-server-data';
 import { useAuth } from '@/lib/auth-context';
-import { formatDate, formatPIVA } from '@/lib/utils';
+import { formatDate, formatPIVA, exportCSV, parseCSV } from '@/lib/utils';
 import { Search, Plus, Download, Upload, Eye, Building2, User as UserIcon, Save, MoreHorizontal, Pencil, Trash2, Copy, FileUp } from 'lucide-react';
 import type { Cliente } from '@/lib/types';
 
@@ -432,22 +432,80 @@ export default function ClientiPage() {
                   <p className="font-medium text-foreground">Formato richiesto:</p>
                   <p>Ragione Sociale, Tipo, P.IVA, CF, Email, Telefono, Indirizzo, Citta, CAP, Provincia</p>
                   <p className="mt-2">
-                    <Button variant="link" className="h-auto p-0 text-xs" onClick={() => alert('Demo: download template CSV')}>
+                    <Button variant="link" className="h-auto p-0 text-xs" onClick={() => {
+                      const headers = ['Ragione Sociale', 'Tipo', 'P.IVA', 'Codice Fiscale', 'Email', 'Telefono', 'Indirizzo', 'Citta', 'CAP', 'Provincia'].join(',');
+                      const blob = new Blob([headers + '\n'], { type: 'text/csv;charset=utf-8;' });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = 'template_clienti.csv';
+                      a.click();
+                      URL.revokeObjectURL(url);
+                    }}>
                       Scarica template CSV
                     </Button>
                   </p>
                 </div>
                 <div className="flex justify-end gap-2">
                   <Button variant="outline" size="sm" onClick={() => setShowImportDialog(false)}>Annulla</Button>
-                  <Button size="sm" className="bg-[#1a2332] hover:bg-[#1a2332]/90" onClick={() => { alert('Demo: importazione 15 clienti completata!'); setShowImportDialog(false); }}>
+                  <Button size="sm" className="bg-[#1a2332] hover:bg-[#1a2332]/90" disabled={submitting} onClick={async () => {
+                    const fileInput = document.querySelector<HTMLInputElement>('input[type="file"][accept=".csv"]');
+                    const file = fileInput?.files?.[0];
+                    if (!file) {
+                      window.alert('Seleziona un file CSV');
+                      return;
+                    }
+                    setSubmitting(true);
+                    try {
+                      const text = await file.text();
+                      const rows = parseCSV(text);
+                      let imported = 0;
+                      for (const row of rows) {
+                        const res = await createCliente({
+                          tenantId,
+                          ragioneSociale: row['Ragione Sociale'] || '',
+                          tipo: (row['Tipo']?.toLowerCase() === 'privato' ? 'privato' : 'azienda') as 'azienda' | 'privato',
+                          partitaIva: row['P.IVA'] || '',
+                          codiceFiscale: row['Codice Fiscale'] || '',
+                          email: row['Email'] || '',
+                          telefono: row['Telefono'] || '',
+                          indirizzo: row['Indirizzo'] || '',
+                          citta: row['Citta'] || '',
+                          cap: row['CAP'] || '',
+                          provincia: row['Provincia'] || '',
+                        });
+                        if (res.ok) imported++;
+                      }
+                      window.alert(`Importazione completata: ${imported} clienti importati su ${rows.length}`);
+                      refresh();
+                      setShowImportDialog(false);
+                    } catch (err) {
+                      window.alert('Errore durante l\'importazione del CSV');
+                    } finally {
+                      setSubmitting(false);
+                    }
+                  }}>
                     <Upload className="mr-2 h-4 w-4" />
-                    Importa
+                    {submitting ? 'Importazione...' : 'Importa'}
                   </Button>
                 </div>
               </div>
             </DialogContent>
           </Dialog>
-          <Button variant="outline" size="sm" onClick={() => alert('Demo: esporta CSV!')}>
+          <Button variant="outline" size="sm" onClick={() => exportCSV(
+            clienti as unknown as Record<string, unknown>[],
+            [
+              { key: 'ragioneSociale', label: 'Ragione Sociale' },
+              { key: 'tipo', label: 'Tipo' },
+              { key: 'partitaIva', label: 'P.IVA' },
+              { key: 'codiceFiscale', label: 'Codice Fiscale' },
+              { key: 'email', label: 'Email' },
+              { key: 'telefono', label: 'Telefono' },
+              { key: 'citta', label: 'Città' },
+              { key: 'provincia', label: 'Provincia' },
+            ],
+            'clienti'
+          )}>
             <Download className="mr-2 h-4 w-4" />
             Esporta CSV
           </Button>
@@ -516,7 +574,23 @@ export default function ClientiPage() {
                 <Trash2 className="mr-2 h-4 w-4" />
                 Elimina selezionati
               </Button>
-              <Button variant="outline" size="sm" onClick={() => alert('Demo: azione eseguita!')}>
+              <Button variant="outline" size="sm" onClick={() => {
+                const selected = clienti.filter((c) => selectedIds.has(c.id));
+                exportCSV(
+                  selected as unknown as Record<string, unknown>[],
+                  [
+                    { key: 'ragioneSociale', label: 'Ragione Sociale' },
+                    { key: 'tipo', label: 'Tipo' },
+                    { key: 'partitaIva', label: 'P.IVA' },
+                    { key: 'codiceFiscale', label: 'Codice Fiscale' },
+                    { key: 'email', label: 'Email' },
+                    { key: 'telefono', label: 'Telefono' },
+                    { key: 'citta', label: 'Città' },
+                    { key: 'provincia', label: 'Provincia' },
+                  ],
+                  'clienti_selezionati'
+                );
+              }}>
                 <Download className="mr-2 h-4 w-4" />
                 Esporta selezionati
               </Button>

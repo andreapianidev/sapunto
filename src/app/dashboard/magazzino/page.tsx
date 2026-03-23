@@ -598,9 +598,9 @@ export default function MagazzinoPage() {
                                   <MoreHorizontal className="h-4 w-4" />
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
-                                <DropdownMenuItem onClick={() => alert(`Demo: Modifica prodotto "${prodotto.nome}"`)}>
+                                <DropdownMenuItem onClick={() => { setDetailProduct(prodotto); setDetailOpen(true); }}>
                                   <Pencil className="h-4 w-4 mr-2" />
-                                  Modifica
+                                  Dettaglio
                                 </DropdownMenuItem>
                                 <DropdownMenuItem
                                   disabled={submitting}

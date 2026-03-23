@@ -22,7 +22,7 @@ import { Label } from '@/components/ui/label';
 import { fetchOrdini, fetchClienti, fetchProdotti, createOrdine, updateOrdine, deleteOrdine } from '@/lib/actions/data';
 import { useServerData } from '@/lib/hooks/use-server-data';
 import { useAuth } from '@/lib/auth-context';
-import { formatCurrency, formatDate, getStatoOrdineColor, getStatoOrdineLabel } from '@/lib/utils';
+import { formatCurrency, formatDate, getStatoOrdineColor, getStatoOrdineLabel, exportCSV } from '@/lib/utils';
 import { Search, Plus, Eye, ShoppingCart, Save, MoreHorizontal, Pencil, Trash2, Copy, Download } from 'lucide-react';
 import { Pagination } from '@/components/ui/pagination';
 import type { Ordine } from '@/lib/types';
@@ -251,7 +251,18 @@ export default function OrdiniPage() {
       description="Gestione ordini clienti"
       actions={
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => alert('Demo: esporta CSV!')}>
+          <Button variant="outline" size="sm" onClick={() => exportCSV(
+            filtered.map((o) => ({ numero: o.numero, clienteNome: o.clienteNome, data: o.data, stato: o.stato, canale: o.canale, totale: o.totale })),
+            [
+              { key: 'numero', label: 'Numero' },
+              { key: 'clienteNome', label: 'Cliente' },
+              { key: 'data', label: 'Data' },
+              { key: 'stato', label: 'Stato' },
+              { key: 'canale', label: 'Canale' },
+              { key: 'totale', label: 'Totale' },
+            ],
+            'ordini'
+          )}>
             <Download className="mr-2 h-4 w-4" />
             Esporta CSV
           </Button>
@@ -408,7 +419,18 @@ export default function OrdiniPage() {
                 <Trash2 className="mr-2 h-4 w-4" />
                 {submitting ? 'Eliminazione...' : 'Elimina selezionati'}
               </Button>
-              <Button variant="outline" size="sm" onClick={() => alert('Demo: esporta selezionati!')}>
+              <Button variant="outline" size="sm" onClick={() => exportCSV(
+                filtered.filter((o) => selectedIds.has(o.id)).map((o) => ({ numero: o.numero, clienteNome: o.clienteNome, data: o.data, stato: o.stato, canale: o.canale, totale: o.totale })),
+                [
+                  { key: 'numero', label: 'Numero' },
+                  { key: 'clienteNome', label: 'Cliente' },
+                  { key: 'data', label: 'Data' },
+                  { key: 'stato', label: 'Stato' },
+                  { key: 'canale', label: 'Canale' },
+                  { key: 'totale', label: 'Totale' },
+                ],
+                'ordini-selezionati'
+              )}>
                 <Download className="mr-2 h-4 w-4" />
                 Esporta selezionati
               </Button>

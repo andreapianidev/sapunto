@@ -39,26 +39,6 @@ export default function LoginPage() {
     }
   };
 
-  // Quick demo login helper
-  const demoLogin = async (demoEmail: string) => {
-    setEmail(demoEmail);
-    setPassword('demo12345');
-    setError('');
-    setSubmitting(true);
-    const result = await login(demoEmail, 'demo12345');
-    if (result.ok) {
-      const sessionRes = await fetch('/api/auth/session');
-      const session = await sessionRes.json();
-      if (session.user?.ruolo === 'superadmin') {
-        router.push('/superadmin');
-      } else {
-        router.push('/dashboard');
-      }
-    } else {
-      setError(result.error || 'Errore di login');
-      setSubmitting(false);
-    }
-  };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#1a2332] via-[#1e3a5f] to-[#1a2332] p-4">
@@ -78,7 +58,7 @@ export default function LoginPage() {
           <CardHeader className="text-center pb-4">
             <CardTitle className="text-xl">Accedi alla piattaforma</CardTitle>
             <CardDescription>
-              Inserisci le tue credenziali
+              Inserisci email e password del tuo account
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -134,47 +114,13 @@ export default function LoginPage() {
               </Button>
             </form>
 
-            <div className="mt-4 text-center">
-              <Link href="/signup" className="text-sm text-primary hover:underline">
-                Non hai un account? Registrati gratis
+            <div className="mt-4 flex items-center justify-between">
+              <Link href="/reset-password" className="text-sm text-muted-foreground hover:underline">
+                Password dimenticata?
               </Link>
-            </div>
-
-            {/* Demo quick access */}
-            <div className="mt-6 pt-4 border-t">
-              <p className="text-xs text-center text-muted-foreground mb-3">Accesso rapido demo</p>
-              <div className="grid grid-cols-3 gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="text-xs"
-                  disabled={submitting}
-                  onClick={() => demoLogin('admin@sapunto.cloud')}
-                >
-                  Super Admin
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="text-xs"
-                  disabled={submitting}
-                  onClick={() => demoLogin('luigi@rossielettonica.it')}
-                >
-                  Admin
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="text-xs"
-                  disabled={submitting}
-                  onClick={() => demoLogin('anna@rossielettonica.it')}
-                >
-                  Operatore
-                </Button>
-              </div>
+              <Link href="/signup" className="text-sm text-primary hover:underline">
+                Registrati gratis
+              </Link>
             </div>
           </CardContent>
         </Card>
