@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { PageContainer } from '@/components/layout/page-container';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -48,11 +48,10 @@ export default function ImpostazioniPage() {
   const [sdiIban, setSdiIban] = useState('');
   const [sdiSaving, setSdiSaving] = useState(false);
   const [sdiSaved, setSdiSaved] = useState(false);
-  const [sdiLoaded, setSdiLoaded] = useState(false);
 
   // Load SDI config on mount
-  if (!sdiLoaded && tenantId) {
-    setSdiLoaded(true);
+  useEffect(() => {
+    if (!tenantId) return;
     fetchConfigurazioneSdi(tenantId).then((config) => {
       if (config) {
         setSdiProvider(config.provider);
@@ -63,7 +62,7 @@ export default function ImpostazioniPage() {
         setSdiIban(config.ibanBeneficiario || '');
       }
     });
-  }
+  }, [tenantId]);
 
   const handleSaveSdiConfig = async () => {
     setSdiSaving(true);
