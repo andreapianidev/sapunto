@@ -98,7 +98,7 @@ export interface Ordine {
   subtotale: number;
   iva: number;
   totale: number;
-  canale: 'diretto' | 'woocommerce' | 'prestashop' | 'telefono' | 'email';
+  canale: 'diretto' | 'woocommerce' | 'prestashop' | 'shopify' | 'telefono' | 'email';
   note?: string | null;
   fatturaId?: string | null;
 }

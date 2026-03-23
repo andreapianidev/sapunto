@@ -20,7 +20,9 @@ import {
   fetchIntegrazioniEcommerce, fetchLogSync,
   createIntegrazioneEcommerce, updateIntegrazioneEcommerce, deleteIntegrazioneEcommerce,
 } from '@/lib/actions/data';
-import { testWooConnection, syncProducts, syncOrders } from '@/lib/actions/woocommerce';
+import { testWooConnection, syncProducts as syncWooProducts, syncOrders as syncWooOrders } from '@/lib/actions/woocommerce';
+import { testPrestaShopConnection, syncPrestaShopProducts, syncPrestaShopOrders } from '@/lib/actions/prestashop';
+import { testShopifyConnection, syncShopifyProducts, syncShopifyOrders } from '@/lib/actions/shopify';
 import { useServerData } from '@/lib/hooks/use-server-data';
 import { useAuth } from '@/lib/auth-context';
 import { formatDateTime } from '@/lib/utils';
@@ -33,9 +35,48 @@ type Piattaforma = 'woocommerce' | 'prestashop' | 'shopify';
 
 const PIATTAFORME: { value: Piattaforma; label: string; color: string; available: boolean }[] = [
   { value: 'woocommerce', label: 'WooCommerce', color: 'bg-purple-100 text-purple-700', available: true },
-  { value: 'prestashop', label: 'PrestaShop', color: 'bg-pink-100 text-pink-700', available: false },
-  { value: 'shopify', label: 'Shopify', color: 'bg-green-100 text-green-700', available: false },
+  { value: 'prestashop', label: 'PrestaShop', color: 'bg-pink-100 text-pink-700', available: true },
+  { value: 'shopify', label: 'Shopify', color: 'bg-green-100 text-green-700', available: true },
 ];
+
+// Dynamic form config per platform
+const FORM_CONFIG: Record<Piattaforma, {
+  urlPlaceholder: string;
+  urlHelp: string;
+  keyLabel: string;
+  keyPlaceholder: string;
+  needsSecret: boolean;
+  secretLabel?: string;
+  secretPlaceholder?: string;
+  credentialHelp: string;
+}> = {
+  woocommerce: {
+    urlPlaceholder: 'https://mionegozio.it',
+    urlHelp: "L'indirizzo del tuo negozio WooCommerce",
+    keyLabel: 'Consumer Key',
+    keyPlaceholder: 'ck_xxxxxxxxxxxxxxxxxxxxxxxx',
+    needsSecret: true,
+    secretLabel: 'Consumer Secret',
+    secretPlaceholder: 'cs_xxxxxxxxxxxxxxxxxxxxxxxx',
+    credentialHelp: 'Le chiavi API si generano in WooCommerce → Impostazioni → Avanzate → REST API',
+  },
+  prestashop: {
+    urlPlaceholder: 'https://mionegozio.it',
+    urlHelp: "L'indirizzo del tuo negozio PrestaShop",
+    keyLabel: 'API Key Webservice',
+    keyPlaceholder: 'XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX',
+    needsSecret: false,
+    credentialHelp: 'La chiave si genera in PrestaShop → Parametri Avanzati → Webservice → Aggiungi chiave',
+  },
+  shopify: {
+    urlPlaceholder: 'https://mionegozio.myshopify.com',
+    urlHelp: "L'indirizzo .myshopify.com del tuo negozio",
+    keyLabel: 'Admin API Access Token',
+    keyPlaceholder: 'shpat_xxxxxxxxxxxxxxxxxxxxxxxx',
+    needsSecret: false,
+    credentialHelp: 'Il token si genera in Shopify → Settings → Apps → Develop Apps → Admin API Access Token',
+  },
+};
 
 export default function EcommercePage() {
   const { user } = useAuth();
@@ -90,8 +131,9 @@ export default function EcommercePage() {
   };
 
   const handleSave = async () => {
-    if (!formUrl.trim() || !formApiKey.trim() || !formApiSecret.trim()) {
-      setFormError('Tutti i campi sono obbligatori');
+    const config = FORM_CONFIG[formPiattaforma];
+    if (!formUrl.trim() || !formApiKey.trim() || (config.needsSecret && !formApiSecret.trim())) {
+      setFormError('Tutti i campi obbligatori devono essere compilati');
       return;
     }
     setFormSaving(true);
@@ -122,18 +164,24 @@ export default function EcommercePage() {
   };
 
   const handleTestConnection = async (int: typeof integrazioniEcommerce[0]) => {
-    if (!int.urlNegozio || !int.apiKey || !int.apiSecret) {
+    if (!int.urlNegozio || !int.apiKey) {
       setTestResult({ id: int.id, ok: false, msg: 'Configurazione incompleta' });
       return;
     }
     setTestingId(int.id);
     setTestResult(null);
     try {
-      const result = await testWooConnection({
-        url: int.urlNegozio,
-        consumerKey: int.apiKey,
-        consumerSecret: int.apiSecret,
-      });
+      let result: { success: boolean; error?: string };
+      switch (int.piattaforma) {
+        case 'prestashop':
+          result = await testPrestaShopConnection({ url: int.urlNegozio, apiKey: int.apiKey });
+          break;
+        case 'shopify':
+          result = await testShopifyConnection({ url: int.urlNegozio, accessToken: int.apiKey });
+          break;
+        default:
+          result = await testWooConnection({ url: int.urlNegozio, consumerKey: int.apiKey, consumerSecret: int.apiSecret || '' });
+      }
       setTestResult({ id: int.id, ok: result.success, msg: result.success ? 'Connessione riuscita!' : result.error || 'Errore di connessione' });
       if (result.success && int.stato !== 'attivo') {
         await updateIntegrazioneEcommerce(int.id, { stato: 'attivo' });
@@ -150,10 +198,18 @@ export default function EcommercePage() {
     setSyncingId(int.id);
     setSyncType(type);
     try {
-      if (type === 'products') {
-        await syncProducts(tenantId, int.id);
-      } else {
-        await syncOrders(tenantId, int.id);
+      switch (int.piattaforma) {
+        case 'prestashop':
+          if (type === 'products') await syncPrestaShopProducts(tenantId, int.id);
+          else await syncPrestaShopOrders(tenantId, int.id);
+          break;
+        case 'shopify':
+          if (type === 'products') await syncShopifyProducts(tenantId, int.id);
+          else await syncShopifyOrders(tenantId, int.id);
+          break;
+        default:
+          if (type === 'products') await syncWooProducts(tenantId, int.id);
+          else await syncWooOrders(tenantId, int.id);
       }
       refresh();
     } catch (err) {
@@ -207,7 +263,7 @@ export default function EcommercePage() {
             <h3 className="text-lg font-semibold mb-2">Collega il tuo negozio online</h3>
             <p className="text-sm text-muted-foreground max-w-md mx-auto mb-6">
               Sincronizza ordini, prodotti e clienti automaticamente dal tuo e-commerce.
-              Supportiamo WooCommerce, con PrestaShop e Shopify in arrivo.
+              Supportiamo WooCommerce, PrestaShop e Shopify.
             </p>
             <Button onClick={openNewDialog} className="bg-[#1a2332] hover:bg-[#1a2332]/90">
               <Plus className="h-4 w-4 mr-2" />
@@ -428,43 +484,51 @@ export default function EcommercePage() {
               </div>
             )}
 
-            <div>
-              <Label htmlFor="url">URL del Negozio *</Label>
-              <Input
-                id="url"
-                value={formUrl}
-                onChange={(e) => setFormUrl(e.target.value)}
-                placeholder="https://mionegozio.it"
-                className="mt-1"
-              />
-              <p className="text-xs text-muted-foreground mt-1">L'indirizzo del tuo negozio WooCommerce</p>
-            </div>
+            {(() => {
+              const cfg = FORM_CONFIG[formPiattaforma];
+              return (
+                <>
+                  <div>
+                    <Label htmlFor="url">URL del Negozio *</Label>
+                    <Input
+                      id="url"
+                      value={formUrl}
+                      onChange={(e) => setFormUrl(e.target.value)}
+                      placeholder={cfg.urlPlaceholder}
+                      className="mt-1"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">{cfg.urlHelp}</p>
+                  </div>
 
-            <div>
-              <Label htmlFor="apiKey">Consumer Key *</Label>
-              <Input
-                id="apiKey"
-                value={formApiKey}
-                onChange={(e) => setFormApiKey(e.target.value)}
-                placeholder="ck_xxxxxxxxxxxxxxxxxxxxxxxx"
-                className="mt-1 font-mono text-sm"
-              />
-            </div>
+                  <div>
+                    <Label htmlFor="apiKey">{cfg.keyLabel} *</Label>
+                    <Input
+                      id="apiKey"
+                      value={formApiKey}
+                      onChange={(e) => setFormApiKey(e.target.value)}
+                      placeholder={cfg.keyPlaceholder}
+                      className="mt-1 font-mono text-sm"
+                    />
+                  </div>
 
-            <div>
-              <Label htmlFor="apiSecret">Consumer Secret *</Label>
-              <Input
-                id="apiSecret"
-                type="password"
-                value={formApiSecret}
-                onChange={(e) => setFormApiSecret(e.target.value)}
-                placeholder="cs_xxxxxxxxxxxxxxxxxxxxxxxx"
-                className="mt-1 font-mono text-sm"
-              />
-              <p className="text-xs text-muted-foreground mt-1">
-                Le chiavi API si generano in WooCommerce → Impostazioni → Avanzate → REST API
-              </p>
-            </div>
+                  {cfg.needsSecret && (
+                    <div>
+                      <Label htmlFor="apiSecret">{cfg.secretLabel} *</Label>
+                      <Input
+                        id="apiSecret"
+                        type="password"
+                        value={formApiSecret}
+                        onChange={(e) => setFormApiSecret(e.target.value)}
+                        placeholder={cfg.secretPlaceholder}
+                        className="mt-1 font-mono text-sm"
+                      />
+                    </div>
+                  )}
+
+                  <p className="text-xs text-muted-foreground">{cfg.credentialHelp}</p>
+                </>
+              );
+            })()}
           </div>
 
           <DialogFooter className="gap-2">
