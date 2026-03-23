@@ -19,6 +19,10 @@ export async function getPiani() {
   }));
 }
 
+export async function updatePiano(id: string, data: Partial<typeof schema.piani.$inferInsert>) {
+  await db.update(schema.piani).set(data).where(eq(schema.piani.id, id as 'express' | 'explore' | 'experience'));
+}
+
 // ==================== TENANTS ====================
 
 export async function getTenants() {

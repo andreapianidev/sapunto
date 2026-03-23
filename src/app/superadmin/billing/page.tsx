@@ -119,8 +119,18 @@ export default function BillingPage() {
 
   return (
     <PageContainer title="Billing Globale" description="Panoramica pagamenti, abbonamenti e rinnovi" actions={
-      <Button variant="outline" size="sm" onClick={() => alert('Esporta report in CSV — prossimamente')}>
-        <Download className="mr-2 h-4 w-4" />Report
+      <Button variant="outline" size="sm" onClick={() => {
+        const rows = [['Data', 'Tenant', 'Descrizione', 'Metodo', 'Stato', 'Importo'].join(';')];
+        for (const t of transazioniArricchite) {
+          rows.push([t.data, t.tenantNome, t.descrizione, t.metodoPagamento, t.stato, String(t.importo)].join(';'));
+        }
+        const blob = new Blob([rows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = `sapunto-transazioni-${new Date().toISOString().split('T')[0]}.csv`;
+        a.click(); URL.revokeObjectURL(url);
+      }}>
+        <Download className="mr-2 h-4 w-4" />Report CSV
       </Button>
     }>
       {/* Stats */}

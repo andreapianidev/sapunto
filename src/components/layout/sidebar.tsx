@@ -66,6 +66,8 @@ const superadminNavItems: NavItem[] = [
   { label: 'Tenant', href: '/superadmin/tenant', icon: Building2 },
   { label: 'Piani', href: '/superadmin/piani', icon: BarChart3 },
   { label: 'Billing', href: '/superadmin/billing', icon: CreditCard },
+  { label: 'Attività', href: '/superadmin/attivita', icon: Calendar },
+  { label: 'Impostazioni', href: '/superadmin/impostazioni', icon: Settings },
   { label: 'API Docs', href: '/api-docs', icon: BookOpen },
 ];
 

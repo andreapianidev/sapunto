@@ -1265,6 +1265,89 @@ export async function createMovimentoMagazzino(data: {
 
 // ==================== SUPERADMIN CRUD ====================
 
+export async function updatePianoAdmin(id: string, data: {
+  nome?: string;
+  descrizione?: string;
+  prezzoMensile?: string;
+  prezzoAnnuale?: string;
+  maxUtenti?: number;
+  maxClienti?: number;
+  maxFatture?: number;
+  costoUtenteAggiuntivo?: string;
+  funzionalita?: string[];
+}): Promise<ActionResult> {
+  try {
+    await dal.updatePiano(id, data as Parameters<typeof dal.updatePiano>[1]);
+    revalidatePath('/superadmin/piani');
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: String(e) };
+  }
+}
+
+export async function createTenantAdmin(data: {
+  ragioneSociale: string;
+  partitaIva: string;
+  codiceFiscale: string;
+  email: string;
+  pec: string;
+  codiceDestinatario: string;
+  indirizzo: string;
+  citta: string;
+  cap: string;
+  provincia: string;
+  telefono: string;
+  piano: 'express' | 'explore' | 'experience';
+  adminNome: string;
+  adminCognome: string;
+  adminEmail: string;
+}): Promise<ActionResult> {
+  try {
+    const pianiData = await dal.getPiani();
+    const piano = pianiData.find(p => p.id === data.piano);
+    const tenantId = genId('t');
+    const today = new Date().toISOString().split('T')[0];
+    const scadenza = new Date();
+    scadenza.setFullYear(scadenza.getFullYear() + 1);
+
+    await dal.createTenant({
+      id: tenantId,
+      ragioneSociale: data.ragioneSociale,
+      partitaIva: data.partitaIva,
+      codiceFiscale: data.codiceFiscale,
+      email: data.email,
+      pec: data.pec,
+      codiceDestinatario: data.codiceDestinatario,
+      indirizzo: data.indirizzo,
+      citta: data.citta,
+      cap: data.cap,
+      provincia: data.provincia,
+      telefono: data.telefono,
+      piano: data.piano,
+      stato: 'attivo',
+      dataCreazione: today,
+      dataScadenza: scadenza.toISOString().split('T')[0],
+      maxUtenti: piano?.maxUtenti ?? 5,
+      utentiAttivi: 1,
+    });
+
+    await dal.createUser({
+      id: genId('u'),
+      tenantId,
+      nome: data.adminNome,
+      cognome: data.adminCognome,
+      email: data.adminEmail,
+      ruolo: 'tenant_admin',
+      attivo: true,
+    });
+
+    revalidatePath('/superadmin/tenant');
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: String(e) };
+  }
+}
+
 export async function updateTenantAdmin(id: string, data: Record<string, unknown>): Promise<ActionResult> {
   try {
     await dal.updateTenant(id, data as Parameters<typeof dal.updateTenant>[1]);

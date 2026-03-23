@@ -11,20 +11,20 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Pagination } from '@/components/ui/pagination';
-import { fetchTenants, fetchPiani, updateTenantAdmin } from '@/lib/actions/data';
+import { fetchTenants, fetchPiani, updateTenantAdmin, createTenantAdmin } from '@/lib/actions/data';
 import { useServerData } from '@/lib/hooks/use-server-data';
 import { useAuth } from '@/lib/auth-context';
 import { formatDate, formatCurrency, formatPIVA } from '@/lib/utils';
-import { Plus, MoreHorizontal, Pause, Edit, Trash2, Search, Eye, Save, Building2, Users, DollarSign, Loader2 } from 'lucide-react';
+import { Plus, MoreHorizontal, Pause, Edit, Search, Eye, Building2, Users, DollarSign, Loader2 } from 'lucide-react';
 import type { Tenant } from '@/lib/types';
 
 export default function TenantPage() {
@@ -43,6 +43,13 @@ export default function TenantPage() {
   const [pageSize, setPageSize] = useState(10);
   const [detailTenant, setDetailTenant] = useState<Tenant | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [showCreate, setShowCreate] = useState(false);
+  const [createForm, setCreateForm] = useState({
+    ragioneSociale: '', partitaIva: '', codiceFiscale: '', email: '', pec: '',
+    codiceDestinatario: '0000000', indirizzo: '', citta: '', cap: '', provincia: '',
+    telefono: '', piano: 'explore' as 'express' | 'explore' | 'experience',
+    adminNome: '', adminCognome: '', adminEmail: '',
+  });
 
   const filtered = useMemo(() => {
     return tenants.filter((t) => {
@@ -76,6 +83,22 @@ export default function TenantPage() {
     setSubmitting(false);
   };
 
+  const handleCreateTenant = async () => {
+    setSubmitting(true);
+    const result = await createTenantAdmin(createForm);
+    if (result.ok) {
+      setShowCreate(false);
+      setCreateForm({
+        ragioneSociale: '', partitaIva: '', codiceFiscale: '', email: '', pec: '',
+        codiceDestinatario: '0000000', indirizzo: '', citta: '', cap: '', provincia: '',
+        telefono: '', piano: 'explore',
+        adminNome: '', adminCognome: '', adminEmail: '',
+      });
+      refresh();
+    }
+    setSubmitting(false);
+  };
+
   if (loading) return <div className="p-8 text-center">Caricamento...</div>;
 
   return (
@@ -84,9 +107,9 @@ export default function TenantPage() {
       description={`${tenants.length} aziende registrate`}
       actions={
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm">
-            <DollarSign className="mr-2 h-4 w-4" />
-            Report
+          <Button size="sm" onClick={() => setShowCreate(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            Nuovo Tenant
           </Button>
         </div>
       }
@@ -151,6 +174,62 @@ export default function TenantPage() {
               </div>
             );
           })()}
+        </DialogContent>
+      </Dialog>
+
+      {/* Create Tenant dialog */}
+      <Dialog open={showCreate} onOpenChange={setShowCreate}>
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>Nuovo Tenant</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">Dati Azienda</p>
+            <div className="grid grid-cols-2 gap-4">
+              <div><Label>Ragione Sociale *</Label><Input value={createForm.ragioneSociale} onChange={(e) => setCreateForm({ ...createForm, ragioneSociale: e.target.value })} /></div>
+              <div><Label>Partita IVA *</Label><Input value={createForm.partitaIva} onChange={(e) => setCreateForm({ ...createForm, partitaIva: e.target.value })} placeholder="12345678901" /></div>
+              <div><Label>Codice Fiscale</Label><Input value={createForm.codiceFiscale} onChange={(e) => setCreateForm({ ...createForm, codiceFiscale: e.target.value })} /></div>
+              <div><Label>Email Azienda *</Label><Input type="email" value={createForm.email} onChange={(e) => setCreateForm({ ...createForm, email: e.target.value })} /></div>
+              <div><Label>PEC</Label><Input value={createForm.pec} onChange={(e) => setCreateForm({ ...createForm, pec: e.target.value })} /></div>
+              <div><Label>Codice Destinatario</Label><Input value={createForm.codiceDestinatario} onChange={(e) => setCreateForm({ ...createForm, codiceDestinatario: e.target.value })} /></div>
+              <div><Label>Telefono</Label><Input value={createForm.telefono} onChange={(e) => setCreateForm({ ...createForm, telefono: e.target.value })} /></div>
+              <div>
+                <Label>Piano *</Label>
+                <Select value={createForm.piano} onValueChange={(v) => setCreateForm({ ...createForm, piano: v as any })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="express">Express — €69/anno</SelectItem>
+                    <SelectItem value="explore">Explore — €69/mese</SelectItem>
+                    <SelectItem value="experience">Experience — €149/mese</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-4 gap-4">
+              <div className="col-span-2"><Label>Indirizzo</Label><Input value={createForm.indirizzo} onChange={(e) => setCreateForm({ ...createForm, indirizzo: e.target.value })} /></div>
+              <div><Label>Città</Label><Input value={createForm.citta} onChange={(e) => setCreateForm({ ...createForm, citta: e.target.value })} /></div>
+              <div className="grid grid-cols-2 gap-2">
+                <div><Label>CAP</Label><Input value={createForm.cap} onChange={(e) => setCreateForm({ ...createForm, cap: e.target.value })} /></div>
+                <div><Label>Prov.</Label><Input value={createForm.provincia} onChange={(e) => setCreateForm({ ...createForm, provincia: e.target.value })} maxLength={2} /></div>
+              </div>
+            </div>
+            <div className="border-t pt-4">
+              <p className="text-sm text-muted-foreground mb-4">Amministratore Tenant (verrà creato automaticamente)</p>
+              <div className="grid grid-cols-3 gap-4">
+                <div><Label>Nome *</Label><Input value={createForm.adminNome} onChange={(e) => setCreateForm({ ...createForm, adminNome: e.target.value })} /></div>
+                <div><Label>Cognome *</Label><Input value={createForm.adminCognome} onChange={(e) => setCreateForm({ ...createForm, adminCognome: e.target.value })} /></div>
+                <div><Label>Email *</Label><Input type="email" value={createForm.adminEmail} onChange={(e) => setCreateForm({ ...createForm, adminEmail: e.target.value })} /></div>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCreate(false)}>Annulla</Button>
+            <Button
+              onClick={handleCreateTenant}
+              disabled={submitting || !createForm.ragioneSociale || !createForm.partitaIva || !createForm.email || !createForm.adminNome || !createForm.adminCognome || !createForm.adminEmail}
+            >
+              {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Crea Tenant
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
