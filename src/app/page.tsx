@@ -1108,7 +1108,7 @@ export default function LandingPage() {
                   </ul>
 
                   <Link
-                    href={`/checkout?piano=${piano.id}`}
+                    href={`/signup?piano=${piano.id}`}
                     className={`w-full inline-flex items-center justify-center gap-2 rounded-xl px-6 py-4 text-[14px] font-bold transition-all duration-300 ${
                       piano.highlight
                         ? 'bg-white text-[#1a2332] hover:bg-gray-100 shadow-lg'

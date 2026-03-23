@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,7 +10,17 @@ import { Label } from '@/components/ui/label';
 import { AlertCircle, Loader2, CheckCircle2 } from 'lucide-react';
 
 export default function SignupPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-gradient-to-br from-[#1a2332] via-[#1e3a5f] to-[#1a2332] flex items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-white" /></div>}>
+      <SignupContent />
+    </Suspense>
+  );
+}
+
+function SignupContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const pianoParam = searchParams.get('piano') || 'explore';
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -54,6 +64,7 @@ export default function SignupPage() {
           cognome: form.cognome,
           email: form.email,
           password: form.password,
+          piano: pianoParam,
         }),
       });
 
@@ -90,7 +101,9 @@ export default function SignupPage() {
             </div>
           </Link>
           <h1 className="text-3xl font-bold text-white">Inizia con Sapunto</h1>
-          <p className="text-blue-200 mt-1">Crea il tuo account in pochi secondi</p>
+          <p className="text-blue-200 mt-1">
+            Piano <span className="font-semibold capitalize">{pianoParam}</span> — Prova gratuita 30 giorni
+          </p>
         </div>
 
         {/* Benefits */}

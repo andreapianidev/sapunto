@@ -8,7 +8,8 @@ import { createSession, setSessionCookie } from '@/lib/auth';
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { ragioneSociale, partitaIva, email, password, nome, cognome } = body;
+    const { ragioneSociale, partitaIva, email, password, nome, cognome, piano: pianoParam } = body;
+    const piano = ['express', 'explore', 'experience'].includes(pianoParam) ? pianoParam : 'explore';
 
     if (!ragioneSociale || !partitaIva || !email || !password || !nome || !cognome) {
       return NextResponse.json({ error: 'Tutti i campi obbligatori devono essere compilati' }, { status: 400 });
@@ -47,7 +48,7 @@ export async function POST(request: NextRequest) {
       email,
       pec: '',
       codiceDestinatario: '0000000',
-      piano: 'express',
+      piano,
       stato: 'trial',
       dataCreazione: now,
       dataScadenza: trialEnd,
