@@ -62,7 +62,7 @@ export default function SpesePage() {
   const [formDescrizione, setFormDescrizione] = useState('');
   const [formCategoria, setFormCategoria] = useState<string>('trasporti');
   const [formImporto, setFormImporto] = useState('');
-  const [formData, setFormData] = useState('2026-03-18');
+  const [formData, setFormData] = useState(new Date().toISOString().split('T')[0]);
 
   // Edit form state
   const [editOpen, setEditOpen] = useState(false);
@@ -76,7 +76,7 @@ export default function SpesePage() {
     setFormDescrizione('');
     setFormCategoria('trasporti');
     setFormImporto('');
-    setFormData('2026-03-18');
+    setFormData(new Date().toISOString().split('T')[0]);
   };
 
   const openEdit = (s: typeof spese[number]) => {

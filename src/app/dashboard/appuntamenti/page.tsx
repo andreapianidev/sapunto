@@ -49,7 +49,7 @@ export default function AppuntamentiPage() {
   const [submitting, setSubmitting] = useState(false);
   const [formTitolo, setFormTitolo] = useState('');
   const [formClienteId, setFormClienteId] = useState('');
-  const [formOperatore, setFormOperatore] = useState('Marco Rossi');
+  const [formOperatore, setFormOperatore] = useState('');
   const [formData, setFormData] = useState('');
   const [formOraInizio, setFormOraInizio] = useState('');
   const [formOraFine, setFormOraFine] = useState('');
@@ -73,7 +73,7 @@ export default function AppuntamentiPage() {
   const resetCreateForm = () => {
     setFormTitolo('');
     setFormClienteId('');
-    setFormOperatore('Marco Rossi');
+    setFormOperatore('');
     setFormData('');
     setFormOraInizio('');
     setFormOraFine('');
@@ -163,7 +163,7 @@ export default function AppuntamentiPage() {
     }
   };
 
-  const oggi = '2026-03-18';
+  const oggi = new Date().toISOString().split('T')[0];
 
   // Unique operators from data
   const operatori = useMemo(() => Array.from(new Set(appuntamenti.map(a => a.operatoreNome))).sort(), [appuntamenti]);
@@ -178,7 +178,10 @@ export default function AppuntamentiPage() {
   }, [filtroStato, filtroOperatore, appuntamenti]);
 
   const getSettimana = (offset: number) => {
-    const base = new Date('2026-03-16'); // Lunedì
+    const now = new Date();
+    const day = now.getDay();
+    const base = new Date(now);
+    base.setDate(now.getDate() - (day === 0 ? 6 : day - 1)); // Lunedì corrente
     base.setDate(base.getDate() + offset * 7);
     const days = [];
     for (let i = 0; i < 7; i++) {
@@ -202,7 +205,8 @@ export default function AppuntamentiPage() {
 
   // Monthly calendar helpers
   const getMeseInfo = (offset: number) => {
-    const base = new Date('2026-03-01');
+    const base = new Date();
+    base.setDate(1);
     base.setMonth(base.getMonth() + offset);
     const anno = base.getFullYear();
     const mese = base.getMonth();

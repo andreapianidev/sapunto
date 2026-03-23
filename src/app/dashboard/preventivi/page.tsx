@@ -41,10 +41,12 @@ export default function PreventiviPage() {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
 
   // Form state for new preventivo
-  const [formClienteId, setFormClienteId] = useState('c-1');
+  const oggi = new Date().toISOString().split('T')[0];
+  const fra30gg = new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0];
+  const [formClienteId, setFormClienteId] = useState('');
   const [formOggetto, setFormOggetto] = useState('');
-  const [formData, setFormData] = useState('2026-03-22');
-  const [formScadenza, setFormScadenza] = useState('2026-04-22');
+  const [formData, setFormData] = useState(oggi);
+  const [formScadenza, setFormScadenza] = useState(fra30gg);
   const [formNote, setFormNote] = useState('');
 
   // Edit state
@@ -88,10 +90,10 @@ export default function PreventiviPage() {
   ];
 
   const resetCreateForm = () => {
-    setFormClienteId('c-1');
+    setFormClienteId('');
     setFormOggetto('');
-    setFormData('2026-03-22');
-    setFormScadenza('2026-04-22');
+    setFormData(new Date().toISOString().split('T')[0]);
+    setFormScadenza(new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0]);
     setFormNote('');
   };
 

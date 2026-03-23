@@ -52,7 +52,7 @@ export default function ContrattiPage() {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
 
   // Create form state
-  const [formClienteId, setFormClienteId] = useState('c-1');
+  const [formClienteId, setFormClienteId] = useState('');
   const [formOggetto, setFormOggetto] = useState('');
   const [formTipo, setFormTipo] = useState<'servizio' | 'fornitura' | 'manutenzione' | 'consulenza'>('servizio');
   const [formValoreAnnuale, setFormValoreAnnuale] = useState('');
@@ -82,7 +82,8 @@ export default function ContrattiPage() {
   const paginatedItems = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
 
   const valoreAttivi = contratti.filter((c) => c.stato === 'attivo').reduce((s, c) => s + c.valoreAnnuale, 0);
-  const inScadenza = contratti.filter((c) => c.stato === 'attivo' && c.dataFine <= '2026-04-30').length;
+  const fra30gg = new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0];
+  const inScadenza = contratti.filter((c) => c.stato === 'attivo' && c.dataFine <= fra30gg).length;
 
   // Bulk select helpers
   const allPageIds = paginatedItems.map((c) => c.id);
@@ -133,7 +134,7 @@ export default function ContrattiPage() {
   ];
 
   const resetCreateForm = () => {
-    setFormClienteId('c-1');
+    setFormClienteId('');
     setFormOggetto('');
     setFormTipo('servizio');
     setFormValoreAnnuale('');
