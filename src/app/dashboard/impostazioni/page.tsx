@@ -26,7 +26,7 @@ import { Building2, Users, FileText, CreditCard, Save, Plus, Loader2, Trash2 } f
 
 export default function ImpostazioniPage() {
   const { tenant, user, refreshSession } = useAuth();
-  const tenantId = user?.tenantId || 't-1';
+  const tenantId = user!.tenantId;
   const [allData, loading, refresh] = useServerData(
     () => Promise.all([fetchUsersByTenantId(tenantId), fetchPiani()]),
     [[], []]

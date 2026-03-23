@@ -15,7 +15,7 @@ import { Button } from '@/components/ui/button';
 
 export default function EcommercePage() {
   const { user } = useAuth();
-  const tenantId = user?.tenantId || 't-1';
+  const tenantId = user!.tenantId;
   const [allData, loading, refresh] = useServerData(
     () => Promise.all([fetchIntegrazioniEcommerce(tenantId), fetchLogSync()]),
     [[], []]

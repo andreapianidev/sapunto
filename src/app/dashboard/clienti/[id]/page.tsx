@@ -32,7 +32,7 @@ export default function ClienteDetailPage() {
   const id = params.id;
 
   const { user } = useAuth();
-  const tenantId = user?.tenantId || 't-1';
+  const tenantId = user!.tenantId;
   const [submitting, setSubmitting] = useState(false);
   const [allData, loading, refresh] = useServerData(
     () => Promise.all([fetchClienti(tenantId), fetchOrdini(tenantId), fetchFatture(tenantId), fetchEmails(tenantId)]),

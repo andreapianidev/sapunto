@@ -45,7 +45,7 @@ const emptyForm = {
 
 export default function ClientiPage() {
   const { user } = useAuth();
-  const tenantId = user?.tenantId || 't-1';
+  const tenantId = user!.tenantId;
   const [allData, loading, refresh] = useServerData(
     () => Promise.all([fetchClienti(tenantId), fetchOrdini(tenantId), fetchFatture(tenantId)]),
     [[], [], []]

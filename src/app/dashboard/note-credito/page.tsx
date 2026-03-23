@@ -41,7 +41,7 @@ const statoLabel: Record<string, string> = {
 
 export default function NoteCreditoPage() {
   const { user } = useAuth();
-  const tenantId = user?.tenantId || 't-1';
+  const tenantId = user!.tenantId;
   const [noteDiCredito, loading, refresh] = useServerData(() => fetchNoteDiCredito(tenantId), []);
 
   const [searchTerm, setSearchTerm] = useState('');

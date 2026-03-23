@@ -28,7 +28,7 @@ const giorniSettimanaCompleti = ['Lunedì', 'Martedì', 'Mercoledì', 'Giovedì'
 
 export default function AppuntamentiPage() {
   const { user } = useAuth();
-  const tenantId = user?.tenantId || 't-1';
+  const tenantId = user!.tenantId;
   const [allData, loading, refresh] = useServerData(
     () => Promise.all([fetchAppuntamenti(tenantId), fetchClienti(tenantId)]),
     [[], []]

@@ -29,7 +29,7 @@ import type { Ordine } from '@/lib/types';
 
 export default function OrdiniPage() {
   const { user } = useAuth();
-  const tenantId = user?.tenantId || 't-1';
+  const tenantId = user!.tenantId;
   const [allData, loading, refresh] = useServerData(
     () => Promise.all([fetchOrdini(tenantId), fetchClienti(tenantId), fetchProdotti(tenantId)]),
     [[], [], []]

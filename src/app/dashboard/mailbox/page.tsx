@@ -27,7 +27,7 @@ import type { Email } from '@/lib/types';
 
 export default function MailboxPage() {
   const { user } = useAuth();
-  const tenantId = user?.tenantId || 't-1';
+  const tenantId = user!.tenantId;
   const [allData, loading, refresh] = useServerData(
     () => Promise.all([fetchEmails(tenantId), fetchClienti(tenantId)]),
     [[], []]

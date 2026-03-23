@@ -45,7 +45,7 @@ const categoriaBadge: Record<string, string> = {
 
 export default function SpesePage() {
   const { user } = useAuth();
-  const tenantId = user?.tenantId || 't-1';
+  const tenantId = user!.tenantId;
   const [spese, loading, refresh] = useServerData(() => fetchSpese(tenantId), []);
 
   const [searchTerm, setSearchTerm] = useState('');

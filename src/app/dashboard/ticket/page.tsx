@@ -43,7 +43,7 @@ const prioritaBadge: Record<string, string> = {
 
 export default function TicketPage() {
   const { user } = useAuth();
-  const tenantId = user?.tenantId || 't-1';
+  const tenantId = user!.tenantId;
   const [tickets, loading, refresh] = useServerData(() => fetchTickets(tenantId), []);
 
   const [searchTerm, setSearchTerm] = useState('');

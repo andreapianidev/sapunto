@@ -137,7 +137,7 @@ function SortableLeadCard({
 
 export default function LeadPage() {
   const { user } = useAuth();
-  const tenantId = user?.tenantId || 't-1';
+  const tenantId = user!.tenantId;
   const [leads, loading, refresh] = useServerData(() => fetchLeads(tenantId), []);
 
   const [searchTerm, setSearchTerm] = useState('');

@@ -24,7 +24,7 @@ const statoBadge: Record<string, string> = { bozza: 'bg-gray-100 text-gray-800',
 
 export default function PreventiviPage() {
   const { user } = useAuth();
-  const tenantId = user?.tenantId || 't-1';
+  const tenantId = user!.tenantId;
   const [allData, loading, refresh] = useServerData(
     () => Promise.all([fetchPreventivi(tenantId), fetchClienti(tenantId)]),
     [[], []]

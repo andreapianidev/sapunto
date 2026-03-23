@@ -29,7 +29,7 @@ import { Search, Package, AlertTriangle, ArrowUpCircle, ArrowDownCircle, Plus, M
 
 export default function MagazzinoPage() {
   const { user } = useAuth();
-  const tenantId = user?.tenantId || 't-1';
+  const tenantId = user!.tenantId;
   const [allData, loading, refresh] = useServerData(
     () => Promise.all([fetchProdotti(tenantId), fetchMovimentiMagazzino(tenantId)]),
     [[], []]

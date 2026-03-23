@@ -33,71 +33,27 @@ import {
 
 const COLORS = ['#1a2332', '#3b82f6', '#8b5cf6', '#f59e0b', '#ef4444'];
 
-// Mock activity feed data
-const attivitaRecenti: {
-  id: string;
-  icona: 'ordine' | 'ticket' | 'lead' | 'fattura' | 'contratto' | 'cliente';
-  testo: string;
-  timestamp: string;
-  colore: string;
-}[] = [
-  {
-    id: 'act-1',
-    icona: 'ordine',
-    testo: 'Nuovo ordine ORD-2026-0043 da Digital Home S.r.l.',
-    timestamp: '10 min fa',
-    colore: 'text-blue-600',
-  },
-  {
-    id: 'act-2',
-    icona: 'ticket',
-    testo: 'Ticket TKT-2026-0004 aperto — WiFi laboratorio Scuola San Giuseppe',
-    timestamp: '25 min fa',
-    colore: 'text-red-600',
-  },
-  {
-    id: 'act-3',
-    icona: 'lead',
-    testo: 'Lead Hotel Metropol S.r.l. — proposta inviata',
-    timestamp: '1 ora fa',
-    colore: 'text-purple-600',
-  },
-  {
-    id: 'act-4',
-    icona: 'fattura',
-    testo: 'Fattura FE-2026-0038 emessa per Elettro Forniture Italia S.p.A.',
-    timestamp: '2 ore fa',
-    colore: 'text-green-600',
-  },
-  {
-    id: 'act-5',
-    icona: 'contratto',
-    testo: 'Contratto CTR-2025-004 Centro Medico Salus in scadenza il 31/03',
-    timestamp: '3 ore fa',
-    colore: 'text-amber-600',
-  },
-  {
-    id: 'act-6',
-    icona: 'cliente',
-    testo: 'Nuovo lead Coworking Innovation Hub aggiunto alla pipeline',
-    timestamp: '4 ore fa',
-    colore: 'text-indigo-600',
-  },
-  {
-    id: 'act-7',
-    icona: 'ordine',
-    testo: 'Ordine ORD-2026-0041 spedito a MegaStore Elettronica S.r.l.',
-    timestamp: '5 ore fa',
-    colore: 'text-blue-600',
-  },
-  {
-    id: 'act-8',
-    icona: 'ticket',
-    testo: 'Ticket TKT-2026-0005 risolto — Garanzia UPS TechnoService',
-    timestamp: 'ieri',
-    colore: 'text-green-600',
-  },
-];
+// Build activity feed from real data
+function buildAttivitaRecenti(ordini: any[], tickets: any[], leads: any[], fatture: any[]) {
+  const items: { id: string; icona: string; testo: string; data: string; colore: string }[] = [];
+
+  ordini.slice(-5).forEach((o: any) => {
+    items.push({ id: `ord-${o.id}`, icona: 'ordine', testo: `Ordine ${o.numero} da ${o.clienteNome || 'cliente'}`, data: o.data, colore: 'text-blue-600' });
+  });
+  tickets.slice(-5).forEach((t: any) => {
+    items.push({ id: `tkt-${t.id}`, icona: 'ticket', testo: `Ticket ${t.numero} — ${t.oggetto || t.titolo || ''}`, data: t.dataApertura || t.data, colore: 'text-red-600' });
+  });
+  leads.slice(-5).forEach((l: any) => {
+    items.push({ id: `lead-${l.id}`, icona: 'lead', testo: `Lead ${l.azienda || l.nome || ''} — ${l.stato || ''}`, data: l.dataCreazione || l.data, colore: 'text-purple-600' });
+  });
+  fatture.slice(-5).forEach((f: any) => {
+    items.push({ id: `fat-${f.id}`, icona: 'fattura', testo: `Fattura ${f.numero} per ${f.clienteNome || 'cliente'}`, data: f.dataEmissione || f.data, colore: 'text-green-600' });
+  });
+
+  // Sort by date descending
+  items.sort((a, b) => (b.data || '').localeCompare(a.data || ''));
+  return items.slice(0, 8);
+}
 
 const activityIconMap: Record<string, typeof ShoppingCart> = {
   ordine: ShoppingCart,
@@ -116,7 +72,7 @@ const notificaStyles: Record<string, { bg: string; text: string; border: string 
 
 export default function DashboardPage() {
   const { user } = useAuth();
-  const tenantId = user?.tenantId || 't-1';
+  const tenantId = user!.tenantId;
   const [allData, loading, refresh] = useServerData(
     () => Promise.all([
       fetchVenditeMensili(tenantId),
@@ -145,86 +101,71 @@ export default function DashboardPage() {
 
   if (loading) return <div className="p-8 text-center">Caricamento...</div>;
 
-  // TODO: Replace with Supabase query
-  const kpis = [
+  // Compute real KPIs from fetched data
+  const oggi = new Date().toISOString().split('T')[0];
+  const meseCorrente = oggi.slice(0, 7); // YYYY-MM
+  const fattureDelMese = fatture.filter((f: any) => (f.dataEmissione || f.data || '').startsWith(meseCorrente));
+  const fatturato = fattureDelMese.reduce((sum: number, f: any) => sum + (Number(f.totale) || 0), 0);
+  const ordiniDelMese = ordini.filter((o: any) => (o.data || '').startsWith(meseCorrente));
+
+  const kpis: { title: string; value: string; change: string; trend: 'up' | 'down' | 'neutral'; icon: typeof DollarSign }[] = [
     {
       title: 'Fatturato Mese',
-      value: formatCurrency(32100),
-      change: '+12.5%',
-      trend: 'up',
+      value: formatCurrency(fatturato),
+      change: '',
+      trend: 'neutral',
       icon: DollarSign,
     },
     {
       title: 'Ordini Mese',
-      value: '14',
-      change: '+16.7%',
-      trend: 'up',
+      value: String(ordiniDelMese.length),
+      change: '',
+      trend: 'neutral',
       icon: ShoppingCart,
     },
     {
-      title: 'Nuovi Clienti',
-      value: '3',
-      change: '+50%',
-      trend: 'up',
+      title: 'Lead Attivi',
+      value: String(leads.length),
+      change: '',
+      trend: 'neutral',
       icon: Users,
     },
     {
       title: 'Appuntamenti Oggi',
-      value: String(appuntamenti.filter((a: any) => a.data === '2026-03-18').length),
+      value: String(appuntamenti.filter((a: any) => a.data === oggi).length),
       change: '',
       trend: 'neutral',
       icon: Calendar,
     },
   ];
 
-  // Notification items
-  const notifiche: {
-    id: string;
-    tipo: 'warning' | 'info' | 'danger';
-    titolo: string;
-    descrizione: string;
-  }[] = [
-    {
-      id: 'not-1',
-      tipo: 'warning',
-      titolo: 'Contratto in scadenza',
-      descrizione: 'CTR-2025-004 Centro Medico Salus scade il 31/03/2026 — proporre rinnovo',
-    },
-    {
-      id: 'not-2',
-      tipo: 'danger',
-      titolo: 'Scorte in esaurimento',
-      descrizione: `${prodotti.filter((p: any) => p.giacenza <= p.scorteMinime).length} prodotti sotto la soglia minima di scorta`,
-    },
-    {
-      id: 'not-3',
-      tipo: 'warning',
-      titolo: 'Spese da approvare',
-      descrizione: '2 note spese in attesa di approvazione',
-    },
-    {
-      id: 'not-4',
-      tipo: 'info',
-      titolo: 'Ticket critici aperti',
-      descrizione: `${tickets.filter((t: any) => t.priorita === 'critica' && t.stato !== 'chiuso' && t.stato !== 'risolto').length} ticket con priorità critica in lavorazione`,
-    },
-    {
-      id: 'not-5',
-      tipo: 'warning',
-      titolo: 'Contratto bozza da finalizzare',
-      descrizione: 'CTR-2026-006 Assicurazioni Futuro S.a.s. — bozza in attesa di firma',
-    },
-    {
-      id: 'not-6',
-      tipo: 'info',
-      titolo: 'Lead in negoziazione',
-      descrizione: 'Logistica Nord S.p.A. — chiusura prevista entro il 25/03',
-    },
-  ];
+  // Build notifications from real data
+  const notifiche: { id: string; tipo: 'warning' | 'info' | 'danger'; titolo: string; descrizione: string }[] = [];
 
+  const prodottiSottoScorta = prodotti.filter((p: any) => p.giacenza != null && p.scorteMinime != null && p.giacenza <= p.scorteMinime);
+  if (prodottiSottoScorta.length > 0) {
+    notifiche.push({ id: 'not-scorte', tipo: 'danger', titolo: 'Scorte in esaurimento', descrizione: `${prodottiSottoScorta.length} prodotti sotto la soglia minima di scorta` });
+  }
+
+  const ticketCritici = tickets.filter((t: any) => t.priorita === 'critica' && t.stato !== 'chiuso' && t.stato !== 'risolto');
+  if (ticketCritici.length > 0) {
+    notifiche.push({ id: 'not-ticket', tipo: 'info', titolo: 'Ticket critici aperti', descrizione: `${ticketCritici.length} ticket con priorità critica in lavorazione` });
+  }
+
+  const fattureNonPagate = fatture.filter((f: any) => f.stato === 'non_pagata');
+  if (fattureNonPagate.length > 0) {
+    notifiche.push({ id: 'not-fatture', tipo: 'warning', titolo: 'Fatture non pagate', descrizione: `${fattureNonPagate.length} fatture in attesa di pagamento` });
+  }
+
+  const leadInNegoziazione = leads.filter((l: any) => l.stato === 'negoziazione');
+  if (leadInNegoziazione.length > 0) {
+    notifiche.push({ id: 'not-lead', tipo: 'info', titolo: 'Lead in negoziazione', descrizione: `${leadInNegoziazione.length} lead in fase di negoziazione` });
+  }
+
+  const attivitaRecenti = buildAttivitaRecenti(ordini, tickets, leads, fatture);
   const ordiniRecenti = ordini.slice(-5).reverse();
   const fattureInScadenza = fatture.filter((f: any) => f.stato === 'non_pagata').slice(0, 5);
-  const appuntamentiOggi = appuntamenti.filter((a: any) => a.data === '2026-03-18');
+  const appuntamentiOggi = appuntamenti.filter((a: any) => a.data === oggi);
 
   return (
     <PageContainer title="Dashboard" description="Panoramica delle attivit&agrave;">
@@ -338,24 +279,24 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-1">
-              {attivitaRecenti.map((att, index) => {
+              {attivitaRecenti.length > 0 ? attivitaRecenti.map((att) => {
                 const IconComp = activityIconMap[att.icona] || CircleDot;
                 return (
                   <div key={att.id} className="flex items-start gap-3 py-2.5 border-b border-border last:border-0">
-                    {/* Timeline dot and line */}
                     <div className="flex flex-col items-center">
                       <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#1a2332]/5`}>
                         <IconComp className={`h-4 w-4 ${att.colore}`} />
                       </div>
                     </div>
-                    {/* Content */}
                     <div className="flex-1 min-w-0">
                       <p className="text-sm leading-snug">{att.testo}</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">{att.timestamp}</p>
+                      {att.data && <p className="text-xs text-muted-foreground mt-0.5">{formatDate(att.data)}</p>}
                     </div>
                   </div>
                 );
-              })}
+              }) : (
+                <p className="text-sm text-muted-foreground py-4">Nessuna attività recente. Inizia aggiungendo clienti, ordini o lead.</p>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -403,7 +344,7 @@ export default function DashboardPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2.5">
-            {notifiche.map((notifica) => {
+            {notifiche.length > 0 ? notifiche.map((notifica) => {
               const styles = notificaStyles[notifica.tipo];
               return (
                 <div
@@ -414,7 +355,9 @@ export default function DashboardPage() {
                   <p className="text-xs text-muted-foreground mt-0.5">{notifica.descrizione}</p>
                 </div>
               );
-            })}
+            }) : (
+              <p className="text-sm text-muted-foreground">Nessuna notifica</p>
+            )}
           </CardContent>
         </Card>
 
@@ -430,7 +373,7 @@ export default function DashboardPage() {
             <CardTitle className="text-base font-semibold">Ordini Recenti</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            {ordiniRecenti.map((ordine: any) => (
+            {ordiniRecenti.length > 0 ? ordiniRecenti.map((ordine: any) => (
               <div key={ordine.id} className="flex items-center justify-between border-b border-border pb-3 last:border-0 last:pb-0">
                 <div>
                   <p className="text-sm font-medium">{ordine.clienteNome}</p>
@@ -443,7 +386,9 @@ export default function DashboardPage() {
                   </Badge>
                 </div>
               </div>
-            ))}
+            )) : (
+              <p className="text-sm text-muted-foreground">Nessun ordine</p>
+            )}
           </CardContent>
         </Card>
 
@@ -453,7 +398,7 @@ export default function DashboardPage() {
             <CardTitle className="text-base font-semibold">Top Clienti</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            {topClienti.map((cliente: any, i: number) => (
+            {topClienti.length > 0 ? topClienti.map((cliente: any, i: number) => (
               <div key={cliente.nome} className="flex items-center justify-between border-b border-border pb-3 last:border-0 last:pb-0">
                 <div className="flex items-center gap-3">
                   <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#1a2332] text-white text-xs font-bold">
@@ -463,7 +408,9 @@ export default function DashboardPage() {
                 </div>
                 <p className="text-sm font-semibold">{formatCurrency(cliente.fatturato)}</p>
               </div>
-            ))}
+            )) : (
+              <p className="text-sm text-muted-foreground">Nessun cliente</p>
+            )}
           </CardContent>
         </Card>
 

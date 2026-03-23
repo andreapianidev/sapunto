@@ -3,6 +3,7 @@
 import { useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import { useAuth } from '@/lib/auth-context';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -21,6 +22,7 @@ function SignupContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const pianoParam = searchParams.get('piano') || 'explore';
+  const { refreshSession } = useAuth();
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -76,6 +78,8 @@ function SignupContent() {
         return;
       }
 
+      // Aggiorna il contesto auth con la nuova sessione prima di navigare
+      await refreshSession();
       router.push('/dashboard');
     } catch {
       setError('Errore di connessione');
