@@ -24,7 +24,7 @@ import { Pagination } from '@/components/ui/pagination';
 import { fetchDipendenti, fetchCedolini, createDipendente, updateDipendente, deleteDipendente, createCedolino, updateCedolino, deleteCedolino } from '@/lib/actions/data';
 import { useServerData } from '@/lib/hooks/use-server-data';
 import { useAuth } from '@/lib/auth-context';
-import { formatCurrency, formatDate, getMeseLabel } from '@/lib/utils';
+import { formatCurrency, formatDate, getMeseLabel, exportCSV } from '@/lib/utils';
 import { Users, Wallet, Eye, FileDown, Plus, MoreHorizontal, Pencil, Trash2, Download, Search } from 'lucide-react';
 import type { Dipendente } from '@/lib/types';
 
@@ -328,7 +328,7 @@ export default function PayrollPage() {
       description="Gestione dipendenti e cedolini"
       actions={
         <>
-          <Button variant="outline" size="sm" onClick={() => alert('Demo: Esportazione dati payroll in corso...')}>
+          <Button variant="outline" size="sm" onClick={() => exportCSV(dipendenti, [{ key: 'nome', label: 'Nome' }, { key: 'cognome', label: 'Cognome' }, { key: 'ruoloAziendale', label: 'Ruolo' }, { key: 'tipoContratto', label: 'Reparto' }, { key: 'ralLorda', label: 'Stipendio Base' }, { key: 'dataAssunzione', label: 'Data Assunzione' }], 'dipendenti')}>
             <Download className="h-4 w-4 mr-2" />
             Esporta
           </Button>
@@ -548,7 +548,8 @@ export default function PayrollPage() {
                     variant="outline"
                     size="sm"
                     onClick={() => {
-                      alert(`Demo: Esportazione di ${selectedIds.size} dipendente/i selezionati...`);
+                      const selected = dipendenti.filter((d) => selectedIds.has(d.id));
+                      exportCSV(selected, [{ key: 'nome', label: 'Nome' }, { key: 'cognome', label: 'Cognome' }, { key: 'ruoloAziendale', label: 'Ruolo' }, { key: 'tipoContratto', label: 'Reparto' }, { key: 'ralLorda', label: 'Stipendio Base' }, { key: 'dataAssunzione', label: 'Data Assunzione' }], 'dipendenti_selezionati');
                     }}
                   >
                     <Download className="h-4 w-4 mr-2" />

@@ -24,7 +24,7 @@ import { Pagination } from '@/components/ui/pagination';
 import { fetchProdotti, fetchMovimentiMagazzino, createProdotto, updateProdotto, deleteProdotto, createMovimentoMagazzino } from '@/lib/actions/data';
 import { useServerData } from '@/lib/hooks/use-server-data';
 import { useAuth } from '@/lib/auth-context';
-import { formatCurrency, formatDate } from '@/lib/utils';
+import { formatCurrency, formatDate, exportCSV } from '@/lib/utils';
 import { Search, Package, AlertTriangle, ArrowUpCircle, ArrowDownCircle, Plus, MoreHorizontal, Pencil, Trash2, Download, Eye } from 'lucide-react';
 
 export default function MagazzinoPage() {
@@ -279,7 +279,7 @@ export default function MagazzinoPage() {
       description="Gestione inventario e movimenti"
       actions={
         <>
-          <Button variant="outline" size="sm" onClick={() => alert('Demo: Esportazione inventario in corso...')}>
+          <Button variant="outline" size="sm" onClick={() => exportCSV(prodotti, [{ key: 'nome', label: 'Nome' }, { key: 'sku', label: 'SKU' }, { key: 'categoria', label: 'Categoria' }, { key: 'prezzo', label: 'Prezzo' }, { key: 'giacenza', label: 'Giacenza' }, { key: 'unita', label: 'Unità di Misura' }], 'inventario')}>
             <Download className="h-4 w-4 mr-2" />
             Esporta
           </Button>
@@ -508,7 +508,8 @@ export default function MagazzinoPage() {
                     variant="outline"
                     size="sm"
                     onClick={() => {
-                      alert(`Demo: Esportazione di ${selectedIds.size} prodotti selezionati`);
+                      const selected = prodotti.filter((p) => selectedIds.has(p.id));
+                      exportCSV(selected, [{ key: 'nome', label: 'Nome' }, { key: 'sku', label: 'SKU' }, { key: 'categoria', label: 'Categoria' }, { key: 'prezzo', label: 'Prezzo' }, { key: 'giacenza', label: 'Giacenza' }, { key: 'unita', label: 'Unità di Misura' }], 'prodotti_selezionati');
                     }}
                   >
                     <Download className="h-4 w-4 mr-2" />
