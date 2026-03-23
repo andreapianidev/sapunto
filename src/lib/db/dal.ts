@@ -226,8 +226,18 @@ export async function getIntegrazioneById(id: string) {
   return rows[0] ?? null;
 }
 
+export async function createIntegrazione(data: typeof schema.integrazioniEcommerce.$inferInsert) {
+  await db.insert(schema.integrazioniEcommerce).values(data);
+}
+
 export async function updateIntegrazione(id: string, data: Partial<typeof schema.integrazioniEcommerce.$inferInsert>) {
   await db.update(schema.integrazioniEcommerce).set(data).where(eq(schema.integrazioniEcommerce.id, id));
+}
+
+export async function deleteIntegrazione(id: string) {
+  // Delete sync logs first, then the integration
+  await db.delete(schema.logSync).where(eq(schema.logSync.integrazioneId, id));
+  await db.delete(schema.integrazioniEcommerce).where(eq(schema.integrazioniEcommerce.id, id));
 }
 
 // ==================== LOG SYNC ====================

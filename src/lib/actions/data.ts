@@ -92,6 +92,43 @@ export async function fetchIntegrazioniEcommerce(tenantId: string) {
   return dal.getIntegrazioniEcommerce(tenantId);
 }
 
+export async function createIntegrazioneEcommerce(data: {
+  tenantId: string;
+  piattaforma: 'woocommerce' | 'prestashop' | 'shopify';
+  urlNegozio: string;
+  apiKey: string;
+  apiSecret: string;
+}) {
+  const id = `int-${Date.now()}`;
+  await dal.createIntegrazione({
+    id,
+    tenantId: data.tenantId,
+    piattaforma: data.piattaforma,
+    stato: 'attivo',
+    urlNegozio: data.urlNegozio,
+    apiKey: data.apiKey,
+    apiSecret: data.apiSecret,
+    ultimoSync: null,
+    ordiniSincronizzati: 0,
+    prodottiMappati: 0,
+    errori: 0,
+  });
+  return id;
+}
+
+export async function updateIntegrazioneEcommerce(id: string, data: {
+  urlNegozio?: string;
+  apiKey?: string;
+  apiSecret?: string;
+  stato?: 'attivo' | 'disattivo' | 'errore' | 'prossimamente';
+}) {
+  await dal.updateIntegrazione(id, data);
+}
+
+export async function deleteIntegrazioneEcommerce(id: string) {
+  await dal.deleteIntegrazione(id);
+}
+
 // ==================== LOG SYNC ====================
 export async function fetchLogSync(tenantId: string) {
   return dal.getLogSync(tenantId);
