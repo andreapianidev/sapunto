@@ -13,10 +13,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Pagination } from '@/components/ui/pagination';
-import { fetchLeads, createLead, updateLead, deleteLead } from '@/lib/actions/data';
+import { fetchLeads, createLead, updateLead, deleteLead, createCliente } from '@/lib/actions/data';
 import { useServerData } from '@/lib/hooks/use-server-data';
 import { useAuth } from '@/lib/auth-context';
-import { formatCurrency, formatDate } from '@/lib/utils';
+import { formatCurrency, formatDate, exportCSV } from '@/lib/utils';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Plus, Target, DollarSign, TrendingUp, Users, Save, MoreHorizontal, Pencil, Trash2, Copy, Download, Search, Eye } from 'lucide-react';
 import type { FaseLead } from '@/lib/types';
@@ -61,12 +61,16 @@ function DroppableColumn({ id, children }: { id: string; children: React.ReactNo
 function SortableLeadCard({
   lead,
   onDetail,
+  onEdit,
+  onConvert,
   onPhaseChange,
   onDelete,
   submitting,
 }: {
   lead: { id: string; azienda: string; referente: string; valore: number; probabilita: number; assegnatoNome: string; fase: string };
   onDetail: () => void;
+  onEdit: () => void;
+  onConvert: () => void;
   onPhaseChange: (id: string, fase: FaseLead) => void;
   onDelete: (id: string) => void;
   submitting: boolean;
@@ -109,8 +113,8 @@ function SortableLeadCard({
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuItem onClick={onDetail}><Eye className="mr-2 h-4 w-4" />Dettagli</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => alert('Demo: azione eseguita!')}><Pencil className="mr-2 h-4 w-4" />Modifica</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => alert('Demo: azione eseguita!')}><Copy className="mr-2 h-4 w-4" />Converti a Cliente</DropdownMenuItem>
+            <DropdownMenuItem onClick={onEdit}><Pencil className="mr-2 h-4 w-4" />Modifica</DropdownMenuItem>
+            <DropdownMenuItem onClick={onConvert}><Copy className="mr-2 h-4 w-4" />Converti a Cliente</DropdownMenuItem>
             <DropdownMenuSeparator />
             {pipelineFasi.filter((f) => f !== lead.fase).map((targetFase) => (
               <DropdownMenuItem key={targetFase} onClick={() => onPhaseChange(lead.id, targetFase)} disabled={submitting}>
@@ -154,6 +158,96 @@ export default function LeadPage() {
   const [formTelefono, setFormTelefono] = useState('');
   const [formValore, setFormValore] = useState('');
   const [formFonte, setFormFonte] = useState<string>('sito_web');
+
+  // Edit dialog state
+  const [editOpen, setEditOpen] = useState(false);
+  const [editLead, setEditLead] = useState<typeof leads[number] | null>(null);
+  const [editAzienda, setEditAzienda] = useState('');
+  const [editReferente, setEditReferente] = useState('');
+  const [editEmail, setEditEmail] = useState('');
+  const [editTelefono, setEditTelefono] = useState('');
+  const [editValore, setEditValore] = useState('');
+  const [editFonte, setEditFonte] = useState<string>('sito_web');
+  const [editFase, setEditFase] = useState<string>('nuovo');
+
+  const openEditDialog = (lead: typeof leads[number]) => {
+    setEditLead(lead);
+    setEditAzienda(lead.azienda);
+    setEditReferente(lead.referente);
+    setEditEmail(lead.email);
+    setEditTelefono(lead.telefono);
+    setEditValore(String(lead.valore));
+    setEditFonte(lead.fonte);
+    setEditFase(lead.fase);
+    setEditOpen(true);
+  };
+
+  const handleEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editLead) return;
+    setSubmitting(true);
+    try {
+      const result = await updateLead(editLead.id, {
+        azienda: editAzienda,
+        referente: editReferente,
+        email: editEmail,
+        telefono: editTelefono,
+        valore: editValore,
+        fonte: editFonte,
+        fase: editFase,
+      });
+      if (result.ok) {
+        setEditOpen(false);
+        setEditLead(null);
+        refresh();
+      } else {
+        alert('Errore: ' + ('error' in result ? result.error : 'Errore sconosciuto'));
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleConvertToCliente = async (lead: typeof leads[number]) => {
+    if (!confirm(`Convertire "${lead.azienda}" in cliente?`)) return;
+    setSubmitting(true);
+    try {
+      const result = await createCliente({
+        tenantId,
+        ragioneSociale: lead.azienda,
+        partitaIva: '',
+        codiceFiscale: '',
+        email: lead.email,
+        telefono: lead.telefono,
+        indirizzo: '',
+        citta: '',
+        cap: '',
+        provincia: '',
+        tipo: 'azienda',
+        referente: lead.referente,
+        note: lead.note || '',
+      });
+      if (result.ok) {
+        await updateLead(lead.id, { fase: 'vinto' });
+        refresh();
+      } else {
+        alert('Errore: ' + ('error' in result ? result.error : 'Errore sconosciuto'));
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const csvColumns = [
+    { key: 'referente', label: 'Nome' },
+    { key: 'azienda', label: 'Azienda' },
+    { key: 'email', label: 'Email' },
+    { key: 'telefono', label: 'Telefono' },
+    { key: 'fase', label: 'Fase' },
+    { key: 'valore', label: 'Valore' },
+    { key: 'fonte', label: 'Fonte' },
+    { key: 'probabilita', label: 'Punteggio' },
+  ];
 
   const resetForm = () => {
     setFormAzienda('');
@@ -352,7 +446,7 @@ export default function LeadPage() {
   return (
     <PageContainer title="Lead & Pipeline" description="Gestione opportunità commerciali" actions={
       <div className="flex items-center gap-2">
-      <Button variant="outline" size="sm" onClick={() => alert('Demo: azione eseguita!')}><Download className="mr-2 h-4 w-4" />Export CSV</Button>
+      <Button variant="outline" size="sm" onClick={() => exportCSV(leads as unknown as Record<string, unknown>[], csvColumns, 'leads')}><Download className="mr-2 h-4 w-4" />Export CSV</Button>
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogTrigger className="inline-flex items-center justify-center rounded-md text-sm font-medium h-8 px-3 bg-[#1a2332] text-white hover:bg-[#1a2332]/90"><Plus className="mr-2 h-4 w-4" />Nuovo Lead</DialogTrigger>
         <DialogContent className="sm:max-w-lg">
@@ -410,6 +504,8 @@ export default function LeadPage() {
                                 key={lead.id}
                                 lead={lead}
                                 onDetail={() => { setDetailLead(lead); setDetailOpen(true); }}
+                                onEdit={() => openEditDialog(lead)}
+                                onConvert={() => handleConvertToCliente(lead)}
                                 onPhaseChange={handlePhaseChange}
                                 onDelete={handleDelete}
                                 submitting={submitting}
@@ -496,7 +592,7 @@ export default function LeadPage() {
                     <Trash2 className="mr-2 h-4 w-4" />
                     {submitting ? 'Eliminazione...' : 'Elimina selezionati'}
                   </Button>
-                  <Button variant="outline" size="sm" onClick={() => alert('Demo: azione eseguita!')}>
+                  <Button variant="outline" size="sm" onClick={() => exportCSV(leads.filter((l) => selectedIds.has(l.id)) as unknown as Record<string, unknown>[], csvColumns, 'leads-selezionati')}>
                     <Download className="mr-2 h-4 w-4" />
                     Esporta selezionati
                   </Button>
@@ -562,10 +658,10 @@ export default function LeadPage() {
                               <MoreHorizontal className="h-4 w-4" />
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => alert('Demo: azione eseguita!')}><Pencil className="mr-2 h-4 w-4" />Modifica</DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => openEditDialog(l)}><Pencil className="mr-2 h-4 w-4" />Modifica</DropdownMenuItem>
                               <DropdownMenuItem onClick={() => handleDelete(l.id)} disabled={submitting}><Trash2 className="mr-2 h-4 w-4" />Elimina</DropdownMenuItem>
                               <DropdownMenuSeparator />
-                              <DropdownMenuItem onClick={() => alert('Demo: azione eseguita!')}><Copy className="mr-2 h-4 w-4" />Converti a Cliente</DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleConvertToCliente(l)}><Copy className="mr-2 h-4 w-4" />Converti a Cliente</DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
                         </div>
@@ -593,6 +689,25 @@ export default function LeadPage() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Edit Lead Dialog */}
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader><DialogTitle>Modifica Lead</DialogTitle></DialogHeader>
+          <form className="space-y-4" onSubmit={handleEditSubmit}>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div><Label>Azienda *</Label><Input placeholder="Nome azienda" className="mt-1" required value={editAzienda} onChange={(e) => setEditAzienda(e.target.value)} /></div>
+              <div><Label>Referente *</Label><Input placeholder="Nome e cognome" className="mt-1" required value={editReferente} onChange={(e) => setEditReferente(e.target.value)} /></div>
+              <div><Label>Email</Label><Input type="email" placeholder="email@azienda.it" className="mt-1" value={editEmail} onChange={(e) => setEditEmail(e.target.value)} /></div>
+              <div><Label>Telefono</Label><Input placeholder="+39..." className="mt-1" value={editTelefono} onChange={(e) => setEditTelefono(e.target.value)} /></div>
+              <div><Label>Valore Stimato</Label><Input type="number" placeholder="0" className="mt-1" value={editValore} onChange={(e) => setEditValore(e.target.value)} /></div>
+              <div><Label>Fonte</Label><Select value={editFonte} onValueChange={(v) => v && setEditFonte(v)}><SelectTrigger className="mt-1 w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="sito_web">Sito Web</SelectItem><SelectItem value="referral">Referral</SelectItem><SelectItem value="fiera">Fiera</SelectItem><SelectItem value="social">Social</SelectItem><SelectItem value="cold_call">Cold Call</SelectItem><SelectItem value="altro">Altro</SelectItem></SelectContent></Select></div>
+              <div className="sm:col-span-2"><Label>Fase</Label><Select value={editFase} onValueChange={(v) => v && setEditFase(v)}><SelectTrigger className="mt-1 w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="nuovo">Nuovo</SelectItem><SelectItem value="contattato">Contattato</SelectItem><SelectItem value="qualificato">Qualificato</SelectItem><SelectItem value="proposta">Proposta</SelectItem><SelectItem value="negoziazione">Negoziazione</SelectItem><SelectItem value="vinto">Vinto</SelectItem><SelectItem value="perso">Perso</SelectItem></SelectContent></Select></div>
+            </div>
+            <div className="flex justify-end"><Button type="submit" className="bg-[#1a2332] hover:bg-[#1a2332]/90" disabled={submitting}><Save className="mr-2 h-4 w-4" />{submitting ? 'Salvataggio...' : 'Salva Modifiche'}</Button></div>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       {/* Detail View Dialog */}
       <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
@@ -655,13 +770,13 @@ export default function LeadPage() {
                 </div>
               )}
               <div className="flex justify-end gap-2 pt-2">
-                <Button variant="outline" size="sm" onClick={() => alert('Demo: azione eseguita!')}>
+                <Button variant="outline" size="sm" onClick={() => { setDetailOpen(false); openEditDialog(detailLead); }}>
                   <Pencil className="mr-2 h-4 w-4" />Modifica
                 </Button>
                 <Button variant="destructive" size="sm" onClick={() => { handleDelete(detailLead.id); setDetailOpen(false); }} disabled={submitting}>
                   <Trash2 className="mr-2 h-4 w-4" />Elimina
                 </Button>
-                <Button size="sm" className="bg-[#1a2332] hover:bg-[#1a2332]/90" onClick={() => alert('Demo: azione eseguita!')}>
+                <Button size="sm" className="bg-[#1a2332] hover:bg-[#1a2332]/90" onClick={() => { setDetailOpen(false); handleConvertToCliente(detailLead); }}>
                   <Copy className="mr-2 h-4 w-4" />Converti a Cliente
                 </Button>
               </div>
