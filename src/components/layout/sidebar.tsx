@@ -32,6 +32,7 @@ import {
   Receipt,
   FileX,
   PieChart,
+  FolderOpen,
 } from 'lucide-react';
 
 interface NavItem {
@@ -56,6 +57,7 @@ const tenantNavItems: NavItem[] = [
   { label: 'Spese', href: '/dashboard/spese', icon: Receipt },
   { label: 'Payroll', href: '/dashboard/payroll', icon: Wallet },
   { label: 'Mailbox', href: '/dashboard/mailbox', icon: Mail },
+  { label: 'Documenti', href: '/dashboard/documenti', icon: FolderOpen },
   { label: 'E-commerce', href: '/dashboard/ecommerce', icon: ShoppingBag },
   { label: 'Report', href: '/dashboard/report', icon: PieChart },
   { label: 'Impostazioni', href: '/dashboard/impostazioni', icon: Settings },

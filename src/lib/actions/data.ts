@@ -1442,3 +1442,72 @@ export async function deleteUserAdmin(id: string): Promise<ActionResult> {
     return { ok: false, error: String(e) };
   }
 }
+
+// ==================== DOCUMENTI CRUD ====================
+
+export async function fetchDocumenti(tenantId: string) {
+  return dal.getDocumenti(tenantId);
+}
+
+export async function createDocumento(data: {
+  tenantId: string;
+  nome: string;
+  nomeOriginale: string;
+  dimensione: number;
+  tipoMime: string;
+  url: string;
+  pathname: string;
+  caricatoDa: string;
+  caricatoDaNome: string;
+  cartella?: string;
+  note?: string;
+}): Promise<ActionResult> {
+  try {
+    await dal.createDocumento({
+      id: genId('doc'),
+      tenantId: data.tenantId,
+      nome: data.nome,
+      nomeOriginale: data.nomeOriginale,
+      dimensione: data.dimensione,
+      tipoMime: data.tipoMime,
+      url: data.url,
+      pathname: data.pathname,
+      caricatoDa: data.caricatoDa,
+      caricatoDaNome: data.caricatoDaNome,
+      dataCaricamento: new Date().toISOString(),
+      cartella: data.cartella,
+      note: data.note,
+    });
+    revalidatePath('/dashboard/documenti');
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: String(e) };
+  }
+}
+
+export async function updateDocumento(id: string, data: Record<string, unknown>): Promise<ActionResult> {
+  try {
+    await dal.updateDocumento(id, data as Parameters<typeof dal.updateDocumento>[1]);
+    revalidatePath('/dashboard/documenti');
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: String(e) };
+  }
+}
+
+export async function deleteDocumento(id: string, url: string): Promise<ActionResult> {
+  try {
+    // Elimina dal Blob storage
+    const { deleteFile } = await import('../storage');
+    try {
+      await deleteFile(url);
+    } catch {
+      // Blob potrebbe gia' non esistere, continuiamo con la rimozione dal DB
+    }
+    await dal.deleteDocumento(id);
+    revalidatePath('/dashboard/documenti');
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: String(e) };
+  }
+}

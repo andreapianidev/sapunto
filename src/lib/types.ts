@@ -466,3 +466,21 @@ export interface TransazionePiattaforma {
   dataConferma: string | null;
   dettagliRisposta: Record<string, unknown> | null;
 }
+
+// ==================== DOCUMENTI (File Sharing) ====================
+
+export interface Documento {
+  id: string;
+  tenantId: string;
+  nome: string;
+  nomeOriginale: string;
+  dimensione: number;
+  tipoMime: string;
+  url: string;
+  pathname: string;
+  caricatoDa: string;
+  caricatoDaNome: string;
+  dataCaricamento: string;
+  cartella?: string | null;
+  note?: string | null;
+}

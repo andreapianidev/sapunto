@@ -519,3 +519,21 @@ export const logSdi = pgTable('log_sdi', {
   dettagli: jsonb('dettagli').$type<Record<string, unknown>>().notNull().default({}),
   data: text('data').notNull(),
 });
+
+// ==================== DOCUMENTI (File Sharing) ====================
+
+export const documenti = pgTable('documenti', {
+  id: text('id').primaryKey(),
+  tenantId: text('tenant_id').notNull(),
+  nome: text('nome').notNull(),
+  nomeOriginale: text('nome_originale').notNull(),
+  dimensione: integer('dimensione').notNull(), // bytes
+  tipoMime: text('tipo_mime').notNull(),
+  url: text('url').notNull(), // Vercel Blob URL
+  pathname: text('pathname').notNull(), // Vercel Blob pathname
+  caricatoDa: text('caricato_da').notNull(), // userId
+  caricatoDaNome: text('caricato_da_nome').notNull(),
+  dataCaricamento: text('data_caricamento').notNull(),
+  cartella: text('cartella'),
+  note: text('note'),
+});

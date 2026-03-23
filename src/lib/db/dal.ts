@@ -810,3 +810,28 @@ export async function createMovimentoMagazzino(data: typeof schema.movimentiMaga
       .where(eq(schema.prodotti.id, data.prodottoId));
   }
 }
+
+// ==================== DOCUMENTI CRUD ====================
+
+export async function getDocumenti(tenantId: string) {
+  return db.select().from(schema.documenti)
+    .where(eq(schema.documenti.tenantId, tenantId))
+    .orderBy(desc(schema.documenti.dataCaricamento));
+}
+
+export async function getDocumentoById(id: string) {
+  const rows = await db.select().from(schema.documenti).where(eq(schema.documenti.id, id));
+  return rows[0] ?? null;
+}
+
+export async function createDocumento(data: typeof schema.documenti.$inferInsert) {
+  await db.insert(schema.documenti).values(data);
+}
+
+export async function updateDocumento(id: string, data: Partial<typeof schema.documenti.$inferInsert>) {
+  await db.update(schema.documenti).set(data).where(eq(schema.documenti.id, id));
+}
+
+export async function deleteDocumento(id: string) {
+  await db.delete(schema.documenti).where(eq(schema.documenti.id, id));
+}

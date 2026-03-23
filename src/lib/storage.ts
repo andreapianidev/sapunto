@@ -8,6 +8,13 @@ export const ALLOWED_TYPES = [
   'image/webp',
   'application/pdf',
   'text/csv',
+  'text/plain',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/zip',
+  'application/x-zip-compressed',
 ];
 
 // Lazy check del token — non disponibile a build time su Vercel
