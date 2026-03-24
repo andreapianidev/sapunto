@@ -5,6 +5,7 @@ import { verifySessionFromToken, SESSION_COOKIE } from '@/lib/auth';
 export async function middleware(request: NextRequest) {
   const token = request.cookies.get(SESSION_COOKIE)?.value;
   const { pathname } = request.nextUrl;
+  const isRSC = request.headers.get('RSC') === '1';
 
   // Public routes — no auth required
   if (
@@ -21,12 +22,17 @@ export async function middleware(request: NextRequest) {
 
   // Verify session
   if (!token) {
+    if (isRSC) {
+      return new NextResponse(null, { status: 401 });
+    }
     return NextResponse.redirect(new URL('/login', request.url));
   }
 
   const session = await verifySessionFromToken(token);
   if (!session) {
-    const response = NextResponse.redirect(new URL('/login', request.url));
+    const response = isRSC
+      ? new NextResponse(null, { status: 401 })
+      : NextResponse.redirect(new URL('/login', request.url));
     response.cookies.delete(SESSION_COOKIE);
     return response;
   }
@@ -41,12 +47,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/superadmin', request.url));
   }
 
-  // Pass session data in headers for server components
-  const response = NextResponse.next();
-  response.headers.set('x-user-id', session.userId);
-  response.headers.set('x-tenant-id', session.tenantId);
-  response.headers.set('x-user-role', session.ruolo);
-  return response;
+  return NextResponse.next();
 }
 
 export const config = {
