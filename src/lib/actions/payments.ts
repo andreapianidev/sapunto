@@ -216,7 +216,7 @@ async function handlePayPalCheckout(params: {
       intent: 'CAPTURE',
       purchase_units: [{
         reference_id: params.orderId,
-        custom_id: params.tenantId,
+        custom_id: params.orderId, // Usato dal webhook per trovare la transazione
         description: `Sapunto ${params.pianoNome} - ${params.cicloPagamento === 'mensile' ? 'Abbonamento Mensile' : 'Abbonamento Annuale'}`,
         amount: {
           currency_code: 'EUR',

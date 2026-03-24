@@ -53,11 +53,11 @@ export async function POST(request: NextRequest) {
 
     switch (event_type) {
       case 'PAYMENT.CAPTURE.COMPLETED': {
-        // Pagamento singolo completato
-        const orderId = resource.id;
-        if (orderId) {
+        // resource.id è il capture ID PayPal, resource.custom_id è il Sapunto orderId
+        const sapuntoOrderId = resource.custom_id;
+        if (sapuntoOrderId) {
           await confermaPagamento({
-            riferimentoEsterno: orderId,
+            riferimentoEsterno: sapuntoOrderId,
             dettagliRisposta: payload as unknown as Record<string, unknown>,
           });
         }
@@ -66,10 +66,10 @@ export async function POST(request: NextRequest) {
 
       case 'PAYMENT.CAPTURE.DENIED':
       case 'PAYMENT.CAPTURE.REFUNDED': {
-        const orderId = resource.id;
-        if (orderId) {
+        const sapuntoOrderId = resource.custom_id;
+        if (sapuntoOrderId) {
           await segnaTransazioneFallita({
-            riferimentoEsterno: orderId,
+            riferimentoEsterno: sapuntoOrderId,
             dettagliRisposta: payload as unknown as Record<string, unknown>,
           });
         }
