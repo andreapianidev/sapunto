@@ -17,7 +17,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import { fetchFatture, fetchClienti, createFattura, updateFattura, deleteFattura } from '@/lib/actions/data';
+import { fetchFatture, fetchClienti, fetchProdotti, createFattura, updateFattura, deleteFattura } from '@/lib/actions/data';
 import { inviaFatturaSDI, controllaStatoSDI, reinviaFatturaSDI } from '@/lib/actions/sdi';
 import { useServerData } from '@/lib/hooks/use-server-data';
 import { useAuth } from '@/lib/auth-context';
@@ -36,11 +36,12 @@ export default function FatturePage() {
   const { user } = useAuth();
   const tenantId = user!.tenantId;
   const [allData, loading, refresh] = useServerData(
-    () => Promise.all([fetchFatture(tenantId), fetchClienti(tenantId)]),
-    [[], []]
+    () => Promise.all([fetchFatture(tenantId), fetchClienti(tenantId), fetchProdotti(tenantId)]),
+    [[], [], []]
   );
   const fatture = allData[0];
   const clienti = allData[1];
+  const prodotti = allData[2];
   const [searchTerm, setSearchTerm] = useState('');
   const [filterTipo, setFilterTipo] = useState<string>('tutti');
   const [filterSDI, setFilterSDI] = useState<string>('tutti');
@@ -57,12 +58,44 @@ export default function FatturePage() {
   const [formData, setFormData] = useState('');
   const [formScadenza, setFormScadenza] = useState('');
   const [formMetodo, setFormMetodo] = useState('bonifico');
-  const [formDescrizione, setFormDescrizione] = useState('');
-  const [formImporto, setFormImporto] = useState('');
-  const [formIva, setFormIva] = useState('22');
-  const [sdiLoading, setSdiLoading] = useState<string | null>(null); // ID fattura in corso
+  const [sdiLoading, setSdiLoading] = useState<string | null>(null);
   const [sdiErrors, setSdiErrors] = useState<{ campo: string; messaggio: string }[]>([]);
   const [showSdiErrors, setShowSdiErrors] = useState(false);
+
+  // Righe fattura (multi-line items)
+  type RigaForm = { prodottoId: string; nome: string; quantita: string; prezzoUnitario: string; iva: string };
+  const emptyRiga: RigaForm = { prodottoId: '', nome: '', quantita: '1', prezzoUnitario: '', iva: '22' };
+  const [formRighe, setFormRighe] = useState<RigaForm[]>([{ ...emptyRiga }]);
+
+  const addRiga = () => setFormRighe(prev => [...prev, { ...emptyRiga }]);
+  const removeRiga = (index: number) => setFormRighe(prev => prev.length > 1 ? prev.filter((_, i) => i !== index) : prev);
+  const updateRiga = (index: number, field: keyof RigaForm, value: string) => {
+    setFormRighe(prev => prev.map((r, i) => i === index ? { ...r, [field]: value } : r));
+  };
+  const selectProdotto = (index: number, prodottoId: string) => {
+    const prod = prodotti.find(p => p.id === prodottoId);
+    if (!prod) return;
+    setFormRighe(prev => prev.map((r, i) => i === index ? {
+      ...r,
+      prodottoId: prod.id,
+      nome: prod.nome,
+      prezzoUnitario: String(prod.prezzo),
+      iva: String(prod.iva),
+    } : r));
+  };
+
+  // Calcoli totali in tempo reale
+  const righeCalcolate = formRighe.map(r => {
+    const qty = parseFloat(r.quantita) || 0;
+    const price = parseFloat(r.prezzoUnitario) || 0;
+    const ivaRate = parseFloat(r.iva) || 0;
+    const imponibile = qty * price;
+    const ivaAmount = imponibile * (ivaRate / 100);
+    return { ...r, imponibile, ivaAmount, totaleRiga: imponibile + ivaAmount };
+  });
+  const formSubtotale = righeCalcolate.reduce((s, r) => s + r.imponibile, 0);
+  const formIvaTotal = righeCalcolate.reduce((s, r) => s + r.ivaAmount, 0);
+  const formTotale = formSubtotale + formIvaTotal;
 
   const resetForm = () => {
     setFormClienteId('');
@@ -70,27 +103,29 @@ export default function FatturePage() {
     setFormData('');
     setFormScadenza('');
     setFormMetodo('bonifico');
-    setFormDescrizione('');
-    setFormImporto('');
-    setFormIva('22');
+    setFormRighe([{ ...emptyRiga }]);
   };
 
   const handleCreate = async (asBozza: boolean) => {
     if (submitting) return;
-    const importoNum = parseFloat(formImporto);
-    if (!formClienteId || isNaN(importoNum) || importoNum <= 0) return;
+    // Validazione: serve almeno un cliente e una riga con importo > 0
+    const validRighe = righeCalcolate.filter(r => r.imponibile > 0);
+    if (!formClienteId || validRighe.length === 0) return;
     const cliente = clienti.find((c) => c.id === formClienteId);
     if (!cliente) return;
-
-    const ivaRate = parseInt(formIva) / 100;
-    const subtotale = importoNum;
-    const ivaAmount = subtotale * ivaRate;
-    const totale = subtotale + ivaAmount;
 
     setSubmitting(true);
     setSdiErrors([]);
     try {
-      // Sempre crea come bozza prima
+      const righe = validRighe.map(r => ({
+        prodottoId: r.prodottoId || '',
+        nome: r.nome || 'Prodotto/Servizio',
+        quantita: parseFloat(r.quantita) || 1,
+        prezzoUnitario: parseFloat(r.prezzoUnitario) || 0,
+        iva: parseFloat(r.iva) || 0,
+        totale: r.totaleRiga,
+      }));
+
       const result = await createFattura({
         tenantId,
         tipo: formTipo,
@@ -100,17 +135,10 @@ export default function FatturePage() {
         dataScadenza: formScadenza || new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
         stato: 'non_pagata',
         statoSDI: 'bozza',
-        righe: [{
-          prodottoId: '',
-          nome: formDescrizione || 'Vendita prodotti',
-          quantita: 1,
-          prezzoUnitario: subtotale,
-          iva: parseInt(formIva),
-          totale: totale,
-        }],
-        subtotale: String(subtotale),
-        iva: String(ivaAmount),
-        totale: String(totale),
+        righe,
+        subtotale: String(formSubtotale),
+        iva: String(formIvaTotal),
+        totale: String(formTotale),
       });
 
       if (!result.ok) {
@@ -322,11 +350,12 @@ export default function FatturePage() {
             <Plus className="mr-2 h-4 w-4" />
             Nuova Fattura
           </DialogTrigger>
-          <DialogContent className="sm:max-w-lg">
+          <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Nuova Fattura Elettronica</DialogTitle>
             </DialogHeader>
             <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); }}>
+              {/* Intestazione */}
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="sm:col-span-2">
                   <Label>Cliente *</Label>
@@ -335,7 +364,7 @@ export default function FatturePage() {
                       <SelectValue placeholder="Seleziona cliente" />
                     </SelectTrigger>
                     <SelectContent>
-                      {clienti.filter((c) => c.tipo === 'azienda').slice(0, 10).map((c) => (
+                      {clienti.filter((c) => c.tipo === 'azienda').map((c) => (
                         <SelectItem key={c.id} value={c.id}>{c.ragioneSociale}</SelectItem>
                       ))}
                     </SelectContent>
@@ -375,29 +404,100 @@ export default function FatturePage() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div>
-                  <Label>Descrizione</Label>
-                  <Input placeholder="Vendita prodotti" value={formDescrizione} onChange={(e) => setFormDescrizione(e.target.value)} className="mt-1" />
+              </div>
+
+              {/* Righe fattura */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <Label className="text-sm font-semibold">Righe Fattura</Label>
+                  <Button type="button" variant="outline" size="sm" onClick={addRiga}>
+                    <Plus className="mr-1 h-3 w-3" /> Aggiungi riga
+                  </Button>
                 </div>
-                <div>
-                  <Label>Importo (IVA esclusa) *</Label>
-                  <Input type="number" step="0.01" placeholder="0,00" value={formImporto} onChange={(e) => setFormImporto(e.target.value)} className="mt-1" required />
-                </div>
-                <div>
-                  <Label>Aliquota IVA</Label>
-                  <Select value={formIva} onValueChange={(v) => v && setFormIva(v)}>
-                    <SelectTrigger className="mt-1 w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="22">22%</SelectItem>
-                      <SelectItem value="10">10%</SelectItem>
-                      <SelectItem value="4">4%</SelectItem>
-                      <SelectItem value="0">Esente</SelectItem>
-                    </SelectContent>
-                  </Select>
+                <div className="space-y-3">
+                  {formRighe.map((riga, index) => (
+                    <div key={index} className="border rounded-lg p-3 space-y-2 bg-muted/30">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-medium text-muted-foreground">Riga {index + 1}</span>
+                        {formRighe.length > 1 && (
+                          <Button type="button" variant="ghost" size="sm" className="h-6 w-6 p-0 text-red-500 hover:text-red-700" onClick={() => removeRiga(index)}>
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        )}
+                      </div>
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        <div className="sm:col-span-2">
+                          <Label className="text-xs">Prodotto dal catalogo</Label>
+                          <Select value={riga.prodottoId || '_manual'} onValueChange={(v) => { if (v && v !== '_manual') selectProdotto(index, v); }}>
+                            <SelectTrigger className="mt-1 w-full h-8 text-sm">
+                              <SelectValue placeholder="Seleziona o scrivi manualmente" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="_manual">-- Inserimento manuale --</SelectItem>
+                              {prodotti.filter(p => p.attivo).map((p) => (
+                                <SelectItem key={p.id} value={p.id}>
+                                  {p.nome} — {formatCurrency(p.prezzo)} ({p.iva}% IVA)
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="sm:col-span-2">
+                          <Label className="text-xs">Descrizione *</Label>
+                          <Input placeholder="Descrizione prodotto/servizio" value={riga.nome} onChange={(e) => updateRiga(index, 'nome', e.target.value)} className="mt-1 h-8 text-sm" />
+                        </div>
+                        <div>
+                          <Label className="text-xs">Quantità</Label>
+                          <Input type="number" step="1" min="1" value={riga.quantita} onChange={(e) => updateRiga(index, 'quantita', e.target.value)} className="mt-1 h-8 text-sm" />
+                        </div>
+                        <div>
+                          <Label className="text-xs">Prezzo Unitario (ex IVA)</Label>
+                          <Input type="number" step="0.01" placeholder="0,00" value={riga.prezzoUnitario} onChange={(e) => updateRiga(index, 'prezzoUnitario', e.target.value)} className="mt-1 h-8 text-sm" />
+                        </div>
+                        <div>
+                          <Label className="text-xs">IVA %</Label>
+                          <Select value={riga.iva} onValueChange={(v) => v && updateRiga(index, 'iva', v)}>
+                            <SelectTrigger className="mt-1 w-full h-8 text-sm">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="22">22%</SelectItem>
+                              <SelectItem value="10">10%</SelectItem>
+                              <SelectItem value="4">4%</SelectItem>
+                              <SelectItem value="0">Esente</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="flex items-end">
+                          <div className="w-full">
+                            <Label className="text-xs">Totale riga</Label>
+                            <p className="mt-1 h-8 flex items-center text-sm font-semibold">
+                              {formatCurrency(righeCalcolate[index]?.totaleRiga || 0)}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
+
+              {/* Riepilogo totali */}
+              <div className="border-t pt-3 space-y-1 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Subtotale (imponibile)</span>
+                  <span>{formatCurrency(formSubtotale)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">IVA</span>
+                  <span>{formatCurrency(formIvaTotal)}</span>
+                </div>
+                <div className="flex justify-between font-bold text-base pt-1 border-t">
+                  <span>Totale</span>
+                  <span>{formatCurrency(formTotale)}</span>
+                </div>
+              </div>
+
               <div className="flex justify-end gap-2 pt-2">
                 <Button type="button" variant="outline" disabled={submitting} onClick={() => handleCreate(true)}>
                   {submitting ? 'Salvataggio...' : 'Salva Bozza'}
